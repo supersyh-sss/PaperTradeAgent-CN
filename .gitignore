@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Environment config
+.env
+
+# SQLite database
+backend/database/paper_trade.db
+backend/database/paper_trade.db-shm
+backend/database/paper_trade.db-wal
+*.db
+
+# Runtime data (stock list sync, K-line cache, balance-change state)
+data/
+backend/data/kline_cache/
+
+# Embedding model cache
+backend/cache/fastembed/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Temporary files
+*.log
+*.tmp

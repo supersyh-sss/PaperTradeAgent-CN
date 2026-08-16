@@ -1,0 +1,49 @@
+[project]
+name = "paper-trade-agent"
+version = "0.1.0"
+description = "A股模拟投资交易系统 - 多Agent协作"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "websockets>=13.0",
+    "httpx>=0.27.0",
+    "aiosqlite>=0.20.0",
+    "apscheduler>=3.10.0",
+    "cachetools>=5.5.0",
+    "aiolimiter>=1.2.0",
+    "pandas>=2.2.0",
+    "numpy>=2.0.0",
+    "pydantic>=2.9.0",
+    "python-multipart>=0.0.12",
+    "python-dotenv>=1.0.0",
+    "langgraph>=0.2.0",
+    "langchain-core>=0.3.0",
+    "chinese-calendar>=1.11.0",
+    "akshare>=1.18.84",
+    "fastembed>=0.8.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+]
+
+[[tool.uv.index]]
+url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+default = true
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+    "ruff>=0.6.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+pythonpath = ["."]
+
+[tool.uv.sources]
