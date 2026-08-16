@@ -15,15 +15,11 @@ env/
 # Environment config
 .env
 
-# SQLite database
-backend/database/paper_trade.db
+# SQLite database（主库作为测试用户数据一并上传；运行时 WAL/SHM 不跟踪）
 backend/database/paper_trade.db-shm
 backend/database/paper_trade.db-wal
-*.db
-
-# Runtime data (stock list sync, K-line cache, balance-change state)
-data/
-backend/data/kline_cache/
+*.db-shm
+*.db-wal
 
 # Embedding model cache
 backend/cache/fastembed/
