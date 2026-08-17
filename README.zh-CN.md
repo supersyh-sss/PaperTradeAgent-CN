@@ -1,8 +1,7 @@
-# PaperTradeAgent
+# <div align='center'>PaperTradeAgent<div>
 
 <div align="center">
-
-<img src="docs/logo.svg" alt="PaperTradeAgent Logo" width="150" />
+<img src="docs/logo.svg" alt="PaperTradeAgent Logo" width="100" /><img src="docs/deepseek-color.svg" alt="PaperTradeAgent Logo" width="100" />
 
 **面向投资小白的 A 股多智能体（Multi-Agent）模拟交易与金融素养教育系统 —— 由 LangGraph 协调 6 个 LLM Agent，在真实券商规则下练习交易、积累金融知识，同时是一套开箱即用的 AI Agent 应用开发参考实现。**
 

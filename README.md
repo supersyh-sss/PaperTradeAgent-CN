@@ -1,23 +1,22 @@
-# PaperTradeAgent
+# <div align='center'>PaperTradeAgent<div>
 
 <div align="center">
-
-<img src="docs/logo.svg" alt="PaperTradeAgent Logo" width="150" />
+<img src="docs/logo.svg" alt="PaperTradeAgent Logo" width="100" /><img src="docs/deepseek-color.svg" alt="PaperTradeAgent Logo" width="100" />
 
 **A multi-agent (AI Agent) A-share paper-trading sandbox for novice investors — six LLM agents coordinated by LangGraph to practice trading operations and build financial literacy under real broker rules, and a ready-to-learn reference implementation for building agentic AI applications.**
 
 [English](README.md) · [简体中文](README.zh-CN.md)
 
-![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat&logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.141-009688?style=flat&logo=fastapi&logoColor=white)
-![LangGraph](https://img.shields.io/badge/LangGraph-1.x-1C3C3C?style=flat&logo=langchain&logoColor=white)
-![React](https://img.shields.io/badge/React-19-61DAFB?style=flat&logo=react&logoColor=white)
-![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?style=flat&logo=typescript&logoColor=white)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=flat&logo=tailwindcss&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat\&logo=python\&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.141-009688?style=flat\&logo=fastapi\&logoColor=white)
+![LangGraph](https://img.shields.io/badge/LangGraph-1.x-1C3C3C?style=flat\&logo=langchain\&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61DAFB?style=flat\&logo=react\&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?style=flat\&logo=typescript\&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=flat\&logo=tailwindcss\&logoColor=white)
 ![DeepSeek](https://img.shields.io/badge/LLM-DeepSeek-4D6BFE?style=flat)
 ![License](https://img.shields.io/badge/license-MIT-green?style=flat)
 
-*Keywords: `multi-agent` · `AI Agent` · `LLM` · `LangGraph` · `paper trading` · `simulated trading` · `A-share` · `quantitative analysis` · `RAG` · `robo-advisor` · `financial education` · `risk control` · `open source` · `full-stack`*
+*Keywords:* *`multi-agent`* *·* *`AI Agent`* *·* *`LLM`* *·* *`LangGraph`* *·* *`paper trading`* *·* *`simulated trading`* *·* *`A-share`* *·* *`quantitative analysis`* *·* *`RAG`* *·* *`robo-advisor`* *·* *`financial education`* *·* *`risk control`* *·* *`open source`* *·* *`full-stack`*
 
 </div>
 
@@ -35,11 +34,11 @@ Market quotes and news come entirely from free third-party data sources: Tencent
 
 The following tools are required. Skip any step you already have set up.
 
-| Dependency | Version | Purpose |
-|-----------|---------|---------|
-| Python | 3.11+ | Backend runtime |
-| uv | latest | Python dependency & virtual-env management (by Astral, replaces pip + venv) |
-| Node.js (with npm) | 18+ (20 LTS recommended) | Frontend runtime & package management |
+| Dependency         | Version                  | Purpose                                                                     |
+| ------------------ | ------------------------ | --------------------------------------------------------------------------- |
+| Python             | 3.11+                    | Backend runtime                                                             |
+| uv                 | latest                   | Python dependency & virtual-env management (by Astral, replaces pip + venv) |
+| Node.js (with npm) | 18+ (20 LTS recommended) | Frontend runtime & package management                                       |
 
 **Install Python**: download a 3.11+ installer from [python.org](https://www.python.org/downloads/); on Windows, make sure to tick "Add Python to PATH". Verify with `python --version`.
 
@@ -153,14 +152,14 @@ It is also an **excellent multi-agent application development reference**. Its "
 
 ## Agent Team
 
-| Agent | Responsibility | Model |
-|-------|----------------|-------|
-| **Chief Strategist** | intent recognition, task decomposition, agent dispatch, position awareness | Flash |
-| **Quant Researcher** | technical analysis (MA/RSI/MACD/Bollinger + ATR/KDJ/ROC/CCI/OBV/ADX/MFI/BIAS/PSY), multi-signal score, market regime, fundamentals | Pro |
-| **Market Intelligence** | real-time news (东方财富/财联社/新浪 + DuckDuckGo web search), sentiment, source attribution | Flash |
-| **Trade Executor** | dual-horizon pricing (3–5 min / day-month-year), fee estimation, ATR discipline, order execution | Pro |
-| **Portfolio Monitor** | P&L, concentration risk, drawdown monitoring, auction gap alerts | Pro |
-| **Response Generator** | synthesizes agent outputs into a final report | Flash |
+| Agent                   | Responsibility                                                                                                                     | Model |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| **Chief Strategist**    | intent recognition, task decomposition, agent dispatch, position awareness                                                         | Flash |
+| **Quant Researcher**    | technical analysis (MA/RSI/MACD/Bollinger + ATR/KDJ/ROC/CCI/OBV/ADX/MFI/BIAS/PSY), multi-signal score, market regime, fundamentals | Pro   |
+| **Market Intelligence** | real-time news (东方财富/财联社/新浪 + DuckDuckGo web search), sentiment, source attribution                                                | Flash |
+| **Trade Executor**      | dual-horizon pricing (3–5 min / day-month-year), fee estimation, ATR discipline, order execution                                   | Pro   |
+| **Portfolio Monitor**   | P\&L, concentration risk, drawdown monitoring, auction gap alerts                                                                  | Pro   |
+| **Response Generator**  | synthesizes agent outputs into a final report                                                                                      | Flash |
 
 Directly address an agent with `@量化`/`@quant`, `@市场`/`@情报`/`@intel`, `@交易`/`@trade`, `@风控`/`@持仓`/`@portfolio`, or `@助手`. Multiple agents can be mentioned at once.
 
@@ -168,40 +167,40 @@ Directly address an agent with `@量化`/`@quant`, `@市场`/`@情报`/`@intel`,
 
 The LLM agents run inside a harness that turns non-deterministic model output into a deterministic engineering flow.
 
-| Mechanism | What it does |
-|-----------|--------------|
-| REPL Loop | Read (perception) → Eval (execution) → Print (feedback) → Loop (control) across the agent lifecycle |
-| Context Pipeline | information aggregation → relevance ranking → summarization → budget allocation → template assembly |
-| Call Interceptor | schema serialization, deterministic deserialization, observability injection, fallback chain |
-| Safety Gate | least-privilege permission checks (read-only by default, write operations require explicit authorization), sensitive-data filtering, injection defense, audit logging |
-| Resilience | circuit breaker + retry with exponential backoff and jitter |
-| Sandbox & Contracts | isolation levels and per-agent contracts; state checkpoints for rollback |
+| Mechanism           | What it does                                                                                                                                                          |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| REPL Loop           | Read (perception) → Eval (execution) → Print (feedback) → Loop (control) across the agent lifecycle                                                                   |
+| Context Pipeline    | information aggregation → relevance ranking → summarization → budget allocation → template assembly                                                                   |
+| Call Interceptor    | schema serialization, deterministic deserialization, observability injection, fallback chain                                                                          |
+| Safety Gate         | least-privilege permission checks (read-only by default, write operations require explicit authorization), sensitive-data filtering, injection defense, audit logging |
+| Resilience          | circuit breaker + retry with exponential backoff and jitter                                                                                                           |
+| Sandbox & Contracts | isolation levels and per-agent contracts; state checkpoints for rollback                                                                                              |
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|------------|
-| Backend | FastAPI + LangGraph + SSE |
-| LLM | DeepSeek API (flash / pro models) |
-| Data | Tencent Finance API; 东方财富 / 财联社 / 新浪 (news) + DuckDuckGo web search |
-| Database | SQLite (aiosqlite, WAL) |
-| Cache | TTLCache + JSON files (K-line) + in-memory poller (quotes) |
-| Frontend | React 19 + TypeScript + Tailwind CSS 4 + Vite |
-| Charts | ECharts (K-line + MA + B/S + volume) |
-| State | Zustand |
-| QA | pytest + pytest-asyncio + ruff + GitHub Actions CI |
+| Layer    | Technology                                                          |
+| -------- | ------------------------------------------------------------------- |
+| Backend  | FastAPI + LangGraph + SSE                                           |
+| LLM      | DeepSeek API (flash / pro models)                                   |
+| Data     | Tencent Finance API; 东方财富 / 财联社 / 新浪 (news) + DuckDuckGo web search |
+| Database | SQLite (aiosqlite, WAL)                                             |
+| Cache    | TTLCache + JSON files (K-line) + in-memory poller (quotes)          |
+| Frontend | React 19 + TypeScript + Tailwind CSS 4 + Vite                       |
+| Charts   | ECharts (K-line + MA + B/S + volume)                                |
+| State    | Zustand                                                             |
+| QA       | pytest + pytest-asyncio + ruff + GitHub Actions CI                  |
 
 ## Trading Rules
 
-| Rule | Detail |
-|------|--------|
-| Auction | 9:15–9:20 cancelable / 9:20–9:25 not cancelable / 9:25 match |
-| Continuous | 9:30–11:30, 13:00–15:00 (closed weekends/holidays) |
-| T+1 | Shares bought today are sellable tomorrow |
-| Price limit | 主板 ±10%, 创业板/科创板 ±20%, 北交所 ±30% |
-| Price collar | buy ≤ 102% of reference, sell ≥ 98% of reference |
-| Commission | 0.025% (min ¥5), both sides |
-| Stamp duty | 0.05%, sell only |
+| Rule         | Detail                                                       |
+| ------------ | ------------------------------------------------------------ |
+| Auction      | 9:15–9:20 cancelable / 9:20–9:25 not cancelable / 9:25 match |
+| Continuous   | 9:30–11:30, 13:00–15:00 (closed weekends/holidays)           |
+| T+1          | Shares bought today are sellable tomorrow                    |
+| Price limit  | 主板 ±10%, 创业板/科创板 ±20%, 北交所 ±30%                              |
+| Price collar | buy ≤ 102% of reference, sell ≥ 98% of reference             |
+| Commission   | 0.025% (min ¥5), both sides                                  |
+| Stamp duty   | 0.05%, sell only                                             |
 
 ## Suggestions & Planning
 
@@ -214,7 +213,7 @@ See [docs/PLAN.md](docs/PLAN.md) for optimization and extension suggestions grou
 
 ## Disclaimer
 
-- This project is a **simulated trading (paper trading) educational system**. All account balances, orders, and P&L are virtual.
+- This project is a **simulated trading (paper trading) educational system**. All account balances, orders, and P\&L are virtual.
 - It does **not** provide investment advice and is **not** intended for real-money trading.
 - Market data and news come from public third-party sources and may be delayed or inaccurate.
 - The analysis is generated by LLMs and may contain errors; it is for learning purposes only.
@@ -233,3 +232,4 @@ Contributions are welcome. Please keep the project's educational positioning in 
 - [DeepSeek](https://www.deepseek.com/) — LLM provider
 - [Tencent Finance API](https://qt.gtimg.cn/) / [东方财富](https://www.eastmoney.com/) / [财联社](https://www.cls.cn/) / [新浪财经](https://finance.sina.com.cn/) — market data & news
 - [AKShare](https://github.com/akfamily/akshare) — financial data fallback
+
