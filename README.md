@@ -2,6 +2,8 @@
 
 <div align="center">
 
+<img src="docs/logo.svg" alt="PaperTradeAgent Logo" width="150" />
+
 **A multi-agent (AI Agent) A-share paper-trading sandbox for novice investors — six LLM agents coordinated by LangGraph to practice trading operations and build financial literacy under real broker rules, and a ready-to-learn reference implementation for building agentic AI applications.**
 
 [English](README.md) · [简体中文](README.zh-CN.md)
@@ -29,24 +31,84 @@ Market quotes and news come entirely from free third-party data sources: Tencent
 
 ## Quick Start
 
+### 1. Prerequisites
+
+The following tools are required. Skip any step you already have set up.
+
+| Dependency | Version | Purpose |
+|-----------|---------|---------|
+| Python | 3.11+ | Backend runtime |
+| uv | latest | Python dependency & virtual-env management (by Astral, replaces pip + venv) |
+| Node.js (with npm) | 18+ (20 LTS recommended) | Frontend runtime & package management |
+
+**Install Python**: download a 3.11+ installer from [python.org](https://www.python.org/downloads/); on Windows, make sure to tick "Add Python to PATH". Verify with `python --version`.
+
+**Install uv**:
+
+- Windows (PowerShell):
+  ```powershell
+  powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+  ```
+- macOS / Linux:
+  ```bash
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  ```
+
+Restart your terminal afterwards and verify with `uv --version`.
+
+**Install Node.js**: download an LTS installer from [nodejs.org](https://nodejs.org/) (bundles npm), or use nvm / fnm to manage versions. Verify with `node -v` and `npm -v`.
+
+### 2. Get a DeepSeek API Key
+
+LLM capabilities are powered by DeepSeek, so you need an API key first:
+
+1. Open the DeepSeek platform: <https://platform.deepseek.com/>
+2. Sign up and log in (phone / email / WeChat); new users usually get free credits
+3. Go to the "API Keys" page (or open <https://platform.deepseek.com/api_keys> directly)
+4. Click "Create API Key", give it a name, and generate the key
+5. **Copy and store it immediately** — the key is shown in full only once
+6. This project defaults to DeepSeek V4 models (`deepseek-v4-flash` for speed / `deepseek-v4-pro` for deep reasoning), already preset in `.env.example` — no change needed in most cases
+
+> Never commit your API key to GitHub or put it in frontend code. This project reads it from `.env`, which is already ignored by `.gitignore`.
+
+### 3. Install Dependencies
+
 ```bash
-# 1. Python dependencies
+# Backend Python dependencies (managed by uv, creates .venv automatically)
 uv sync
 
-# 2. Frontend dependencies
-cd frontend && npm install && cd ..
+# Frontend dependencies
+cd frontend
+npm install
+cd ..
+```
 
-# 3. Configure environment
-cp .env.example .env      # fill in DEEPSEEK_API_KEY
+### 4. Configure Environment
 
-# 4. Start backend (http://localhost:8001)
-uv run uvicorn backend.main:app --host 0.0.0.0 --port 8001
+```bash
+cp .env.example .env      # macOS / Linux / Git Bash; on Windows PowerShell use: Copy-Item .env.example .env
+```
 
-# 5. Start frontend (http://localhost:5173)
-cd frontend && npm run dev
+Edit `.env` and set `DEEPSEEK_API_KEY` to the key you just created:
+
+```ini
+DEEPSEEK_API_KEY=sk-your-key
 ```
 
 Core environment variables: `DEEPSEEK_API_KEY` (required), `DEEPSEEK_FLASH_MODEL`, `DEEPSEEK_PRO_MODEL`, `THINKING_MODE` (`auto`/`fast`/`deep`), `INITIAL_BALANCE` (default `1000000.00`).
+
+### 5. Start the Servers
+
+```bash
+# Start the backend (http://localhost:8001)
+uv run uvicorn backend.main:app --host 0.0.0.0 --port 8001
+
+# In a second terminal, start the frontend (http://localhost:5173)
+cd frontend
+npm run dev
+```
+
+Open <http://localhost:5173> in your browser to get started.
 
 ## Architecture
 

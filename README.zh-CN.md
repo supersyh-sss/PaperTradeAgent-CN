@@ -2,6 +2,8 @@
 
 <div align="center">
 
+<img src="docs/logo.svg" alt="PaperTradeAgent Logo" width="150" />
+
 **面向投资小白的 A 股多智能体（Multi-Agent）模拟交易与金融素养教育系统 —— 由 LangGraph 协调 6 个 LLM Agent，在真实券商规则下练习交易、积累金融知识，同时是一套开箱即用的 AI Agent 应用开发参考实现。**
 
 [English](README.md) · [简体中文](README.zh-CN.md)
@@ -29,24 +31,84 @@ PaperTradeAgent 是一个开源的全栈项目，用 LangGraph 协调 6 个 LLM 
 
 ## 快速启动
 
+### 1. 前置依赖
+
+本项目需要以下工具。若已安装可跳过对应步骤。
+
+| 依赖 | 版本要求 | 用途 |
+|------|---------|------|
+| Python | 3.11+ | 后端运行时 |
+| uv | 最新版 | Python 依赖与虚拟环境管理（Astral 出品，替代 pip + venv） |
+| Node.js（含 npm） | 18+（推荐 20 LTS） | 前端运行时与包管理 |
+
+**安装 Python**：前往 [python.org](https://www.python.org/downloads/) 下载 3.11+ 安装包；Windows 安装时务必勾选「Add Python to PATH」。验证：`python --version`。
+
+**安装 uv**：
+
+- Windows（PowerShell）：
+  ```powershell
+  powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+  ```
+- macOS / Linux：
+  ```bash
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  ```
+
+安装后请**重启终端**，验证：`uv --version`。
+
+**安装 Node.js**：前往 [nodejs.org](https://nodejs.org/) 下载 LTS 版本安装（自带 npm），或使用 nvm / fnm 管理多版本。验证：`node -v` 与 `npm -v`。
+
+### 2. 获取 DeepSeek API Key
+
+项目的大模型能力由 DeepSeek 提供，需先申请 API Key：
+
+1. 打开 DeepSeek 开放平台：<https://platform.deepseek.com/>
+2. 注册并登录（支持手机号 / 邮箱 / 微信扫码）；新用户通常赠送免费额度
+3. 进入左侧「API Keys」页面（或直接访问 <https://platform.deepseek.com/api_keys>）
+4. 点击「创建 API Key」，填写名称后生成密钥
+5. **立即复制并妥善保存**——API Key 仅完整显示一次，关闭页面后无法再次查看
+6. 本项目默认使用 DeepSeek V4 模型（`deepseek-v4-flash` 快速 / `deepseek-v4-pro` 深度推理），已内置在 `.env.example` 中，通常无需修改
+
+> 请勿将 API Key 提交到 GitHub 或写进前端代码；本项目通过 `.env` 读取，且 `.env` 已被 `.gitignore` 忽略。
+
+### 3. 安装依赖
+
 ```bash
-# 1. Python 依赖
+# 后端 Python 依赖（由 uv 管理，自动创建 .venv）
 uv sync
 
-# 2. 前端依赖
-cd frontend && npm install && cd ..
-
-# 3. 配置环境变量
-cp .env.example .env      # 填入 DEEPSEEK_API_KEY
-
-# 4. 启动后端 (http://localhost:8001)
-uv run uvicorn backend.main:app --host 0.0.0.0 --port 8001
-
-# 5. 启动前端 (http://localhost:5173)
-cd frontend && npm run dev
+# 前端依赖
+cd frontend
+npm install
+cd ..
 ```
 
-核心环境变量：`DEEPSEEK_API_KEY`（必填）、`DEEPSEEK_FLASH_MODEL`、`DEEPSEEK_PRO_MODEL`、`INITIAL_BALANCE`（默认 `1000000.00`）。
+### 4. 配置环境变量
+
+```bash
+cp .env.example .env      # macOS / Linux / Git Bash；Windows PowerShell 可用 Copy-Item .env.example .env
+```
+
+编辑 `.env`，将 `DEEPSEEK_API_KEY` 替换为你刚申请的密钥：
+
+```ini
+DEEPSEEK_API_KEY=sk-你的密钥
+```
+
+核心环境变量：`DEEPSEEK_API_KEY`（必填）、`DEEPSEEK_FLASH_MODEL`、`DEEPSEEK_PRO_MODEL`、`THINKING_MODE`（`auto`/`fast`/`deep`）、`INITIAL_BALANCE`（默认 `1000000.00`）。
+
+### 5. 启动服务
+
+```bash
+# 启动后端 (http://localhost:8001)
+uv run uvicorn backend.main:app --host 0.0.0.0 --port 8001
+
+# 另开一个终端，启动前端 (http://localhost:5173)
+cd frontend
+npm run dev
+```
+
+浏览器打开 <http://localhost:5173> 即可开始体验。
 
 ## 系统架构
 
