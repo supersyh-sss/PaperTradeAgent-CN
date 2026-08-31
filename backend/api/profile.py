@@ -9,7 +9,6 @@
 画像数据会被下游 Agent（策略/风控）作为用户风险偏好参考。
 """
 import logging
-from typing import Dict, Optional
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
@@ -141,15 +140,15 @@ def _score_to_level(score: int) -> str:
 
 
 class ProfileUpdateRequest(BaseModel):
-    nickname: Optional[str] = None
-    avatar: Optional[str] = None
-    risk_level: Optional[str] = None
-    risk_score: Optional[int] = None
-    onboarding_completed: Optional[bool] = None
+    nickname: str | None = None
+    avatar: str | None = None
+    risk_level: str | None = None
+    risk_score: int | None = None
+    onboarding_completed: bool | None = None
 
 
 class RiskAssessmentRequest(BaseModel):
-    answers: Dict[str, int] = Field(
+    answers: dict[str, int] = Field(
         ..., description="题目 id → 选中选项下标，如 {'loss_tolerance': 1}"
     )
 

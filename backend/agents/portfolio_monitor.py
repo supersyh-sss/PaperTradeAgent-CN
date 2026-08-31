@@ -1,13 +1,18 @@
 """风控与持仓监控官 Agent"""
 import json as json_mod
 from datetime import date, datetime
-from .state import AgentState
-from ..services.data_source_manager import data_source_manager
+
 from ..services import db
+from ..services.agent_memory import (
+    compute_query_hash,
+    get_agent_memory,
+    save_agent_memory,
+)
+from ..services.data_source_manager import data_source_manager
+from ..services.llm import choose_client
 from ..services.position_service import compute_sellable
-from ..services.llm import pro_client
-from ..services.agent_memory import get_agent_memory, save_agent_memory, compute_query_hash
-from .prompts import PORTFOLIO_MONITOR_SYSTEM, AGENT_PROFILES
+from .prompts import AGENT_PROFILES, PORTFOLIO_MONITOR_SYSTEM
+from .state import AgentState
 from .utils import maybe_attach_followup
 
 
@@ -180,7 +185,7 @@ async def portfolio_monitor_node(state: AgentState) -> AgentState:
         llm_result = None
 
     # Build concise portfolio log — personality-driven, not a full audit
-    lines = [f"持仓一览："]
+    lines = ["持仓一览："]
     balance = summary.get("balance", 0)
     total_assets = summary.get("total_assets", 0)
     total_market_value = summary.get("total_market_value", 0)

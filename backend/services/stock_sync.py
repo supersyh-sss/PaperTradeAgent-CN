@@ -1,6 +1,10 @@
 """快速全量采集 - 80/batch, 无延迟"""
-import json, os, sys, asyncio, re
+import asyncio
+import json
 import logging
+import os
+import re
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -18,7 +22,7 @@ async def fetch(batch):
         async with httpx.AsyncClient(timeout=60) as c:
             r = await c.get(url); r.encoding="gbk"; t = r.text
     except Exception:
-        logger.error("腾讯行情批量请求失败", exc_info=True)
+        logger.exception("腾讯行情批量请求失败")
         return {}
     res = {}
     for m in re.finditer(r'v_(\w+)="([^"]*)"', t):
@@ -30,7 +34,8 @@ async def fetch(batch):
 
 async def main():
     if os.path.exists(F):
-        d = json.load(open(F,encoding="utf-8"))
+        with open(F, encoding="utf-8") as f:
+            d = json.load(f)
         if d.get("date")==datetime.now().strftime("%Y-%m-%d"):
             print(f"OK: {d['count']}只 (cached)"); return
     
@@ -83,7 +88,8 @@ async def main():
           "updated_at":datetime.now().isoformat()}
     
     os.makedirs("data",exist_ok=True)
-    json.dump(data,open(F,"w",encoding="utf-8"),ensure_ascii=False,indent=2)
+    with open(F, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
     print(f"DONE: {len(stocks)}只 ({os.path.getsize(F)/1024:.0f}KB)")
 
 asyncio.run(main())

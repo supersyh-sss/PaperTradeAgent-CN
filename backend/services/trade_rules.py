@@ -1,6 +1,5 @@
 """A股交易规则校验 - T+1/手数/涨跌停/交易时间"""
-from datetime import datetime, date, time, timezone, timedelta
-from typing import Optional, Tuple
+from datetime import date, datetime, time, timedelta, timezone
 
 BJT = timezone(timedelta(hours=8))
 
@@ -59,17 +58,17 @@ def _next_trading_day(now: datetime) -> date:
 def get_price_limit(symbol: str) -> float:
     """获取股票涨跌停幅度"""
     code = symbol.replace("sh", "").replace("sz", "").replace("bj", "")
-    if code.startswith("30") or code.startswith("688"):
+    if code.startswith(("30", "688")):
         return LIMIT_CHINEXT  # 创业板/科创板
-    if code.startswith("8") or code.startswith("4"):
+    if code.startswith(("8", "4")):
         return LIMIT_BJ  # 北交所
     return LIMIT_MAIN
 
 
 def validate_trade(symbol: str, side: str, quantity: int, price: float,
-                   prev_close: float, balance: float = None,
-                   position_qty: int = 0, position_buy_date: str = None
-                   ) -> Tuple[bool, Optional[str]]:
+                   prev_close: float, balance: float | None = None,
+                   position_qty: int = 0, position_buy_date: str | None = None
+                   ) -> tuple[bool, str | None]:
     """
     校验交易合法性。返回 (是否合法, 错误信息)
     """

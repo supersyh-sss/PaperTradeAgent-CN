@@ -1,11 +1,12 @@
 """自选股管理 API"""
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+
+from ..config import WATCHLIST_MAX_SIZE
+from ..middleware.error_handler import get_current_user
 from ..services import db
 from ..services.data_source_manager import data_source_manager
 from ..services.symbol import normalize_symbol, pure_code
-from ..middleware.error_handler import get_current_user
-from ..config import WATCHLIST_MAX_SIZE
 
 router = APIRouter(prefix="/api/watchlist", tags=["watchlist"])
 

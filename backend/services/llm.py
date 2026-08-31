@@ -5,21 +5,27 @@ Harness 集成：
   - ResilienceManager: 熔断器保护
   - CallInterceptor: JSON 确定性反序列化
 """
-import httpx
 import json
 import logging
 import time
-from typing import Optional, Dict, Any, AsyncGenerator
+from collections.abc import AsyncGenerator
+from typing import Any
+
+import httpx
+
 from ..config import (
-    DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL,
-    DEEPSEEK_FLASH_MODEL, DEEPSEEK_PRO_MODEL,
-    HTTP_TIMEOUT_LLM_CHAT, HTTP_TIMEOUT_LLM_STREAM,
+    DEEPSEEK_API_KEY,
+    DEEPSEEK_BASE_URL,
+    DEEPSEEK_FLASH_MODEL,
+    DEEPSEEK_PRO_MODEL,
+    HTTP_TIMEOUT_LLM_CHAT,
+    HTTP_TIMEOUT_LLM_STREAM,
 )
 
 logger = logging.getLogger(__name__)
 
 # 复用全局 httpx.AsyncClient，避免每个请求重复 TCP + TLS 握手（显著降低多 Agent 串行/并行的首字延迟）
-_shared_client: Optional[httpx.AsyncClient] = None
+_shared_client: httpx.AsyncClient | None = None
 
 
 def _get_http_client() -> httpx.AsyncClient:
@@ -40,7 +46,7 @@ _resilience = None
 def _get_metrics():
     global _metrics
     if _metrics is None:
-        from ..harness.metrics import MetricsCollector, MetricType
+        from ..harness.metrics import MetricsCollector
         _metrics = MetricsCollector()
     return _metrics
 
@@ -76,7 +82,7 @@ class DeepSeekClient:
         messages: list[dict],
         temperature: float = 0.3,
         max_tokens: int = 2048,
-        response_format: Optional[dict] = None,
+        response_format: dict | None = None,
     ) -> str:
         """调用 DeepSeek Chat Completions API（集成 Harness 度量）"""
         headers = {
@@ -138,7 +144,7 @@ class DeepSeekClient:
         messages: list[dict],
         temperature: float = 0.2,
         max_tokens: int = 1024,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """调用 DeepSeek 并强制返回 JSON（含增强降级解析）"""
         raw = await self.chat(messages, temperature, max_tokens)
         raw = raw.strip()

@@ -1,14 +1,14 @@
 """技术分析引擎：MA/RSI/MACD/布林带"""
+
 import numpy as np
 import pandas as pd
-from typing import List, Dict, Optional
 
 
 class TechnicalAnalyzer:
     """技术指标计算和交易信号生成"""
 
     @staticmethod
-    def compute_ma(data: List[float], period: int) -> pd.Series:
+    def compute_ma(data: list[float], period: int) -> pd.Series:
         s = pd.Series(data)
         return s.rolling(window=period, min_periods=1).mean()
 
@@ -52,7 +52,7 @@ class TechnicalAnalyzer:
             "std": std.tolist(),
         }
 
-    def analyze(self, kline_data: List[dict]) -> Optional[dict]:
+    def analyze(self, kline_data: list[dict]) -> dict | None:
         """
         对K线数据进行全面技术分析，生成结构化信号
         kline_data: [{"date": "...", "open": ..., "close": ..., "high": ..., "low": ..., "volume": ...}, ...]
@@ -64,7 +64,6 @@ class TechnicalAnalyzer:
         closes = df["close"].astype(float)
         highs = df["high"].astype(float)
         lows = df["low"].astype(float)
-        volumes = df["volume"].astype(float)
 
         # 计算均线
         ma5 = self.compute_ma(closes, 5)
@@ -190,12 +189,12 @@ class TechnicalAnalyzer:
             label = label_map.get(s['strength'], '')
             lines.append(f"- {label} [{s['type']}] {s['signal']} (强度: {s['strength']})")
 
-        lines.append(f"\n### 布林带")
+        lines.append("\n### 布林带")
         bb = analysis['bollinger']
         lines.append(f"- 上轨: {bb['upper']} | 中轨: {bb['middle']} | 下轨: {bb['lower']}")
         lines.append(f"- 波动率: {analysis['volatility']}%")
 
-        lines.append(f"\n### 支撑/阻力")
+        lines.append("\n### 支撑/阻力")
         lines.append(f"- 支撑位: {', '.join(str(x) for x in analysis['support'])}")
         lines.append(f"- 阻力位: {', '.join(str(x) for x in analysis['resistance'])}")
 

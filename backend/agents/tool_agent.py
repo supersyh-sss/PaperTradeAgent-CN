@@ -6,16 +6,16 @@
 
 import json
 import logging
-from typing import List, Dict, Any, Tuple
+from typing import Any
 
-from ..services.llm import DeepSeekClient
 from ..harness.metrics import MetricsCollector, MetricType
+from ..services.llm import DeepSeekClient
 from .tools import AGENT_TOOLS
 
 logger = logging.getLogger(__name__)
 
 # 工具名 → tool 对象，用于 tool_call 分发
-TOOL_REGISTRY: Dict[str, Any] = {t.name: t for t in AGENT_TOOLS}
+TOOL_REGISTRY: dict[str, Any] = {t.name: t for t in AGENT_TOOLS}
 
 
 def _tool_parameters(t) -> dict:
@@ -46,7 +46,7 @@ def _tool_parameters(t) -> dict:
     return {"type": "object", "properties": {}}
 
 
-def _tools_to_schema(tools: List[Any]) -> List[dict]:
+def _tools_to_schema(tools: list[Any]) -> list[dict]:
     """将 LangChain @tool 对象转为 OpenAI function-calling schema"""
     schemas = []
     for t in tools:
@@ -81,11 +81,11 @@ async def run_tool_agent(
     client: DeepSeekClient,
     system_prompt: str,
     user_prompt: str,
-    tools: List[Any],
+    tools: list[Any],
     max_rounds: int = 3,
     temperature: float = 0.1,
     max_tokens: int = 1024,
-) -> Tuple[str, List[dict]]:
+) -> tuple[str, list[dict]]:
     """多轮 Function Calling 循环。
 
     Returns:
@@ -97,7 +97,7 @@ async def run_tool_agent(
         {"role": "user", "content": user_prompt},
     ]
     schema = _tools_to_schema(tools)
-    trace: List[dict] = []
+    trace: list[dict] = []
 
     for _round in range(max_rounds):
         content, tool_calls = await client.chat_with_tools(

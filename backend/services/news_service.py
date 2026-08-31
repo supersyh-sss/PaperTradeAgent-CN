@@ -13,8 +13,7 @@ import json as json_mod
 import logging
 import re
 import time as _time
-from datetime import datetime, timezone, timedelta
-from typing import Dict
+from datetime import datetime, timedelta, timezone
 
 import httpx
 
@@ -23,7 +22,7 @@ logger = logging.getLogger(__name__)
 BJT = timezone(timedelta(hours=8))
 
 # 新闻缓存
-_cache: Dict[str, dict] = {}  # key -> {"data": [...], "ts": timestamp}
+_cache: dict[str, dict] = {}  # key -> {"data": [...], "ts": timestamp}
 
 _CACHE_TTL = 60  # 秒
 
@@ -239,8 +238,8 @@ async def _fetch_eastmoney_stock_news(symbol: str) -> list:
     """个股新闻：优先用股票名称搜索，其次用代码搜索。"""
     items = []
     try:
-        from .symbol import pure_code
         from .stock_lookup import resolve
+        from .symbol import pure_code
 
         code = pure_code(symbol)
         name = ""
@@ -312,7 +311,7 @@ async def save_news_to_db(news_items: list) -> int:
         return 0
 
 
-async def get_cached_news(symbol: str = None, limit: int = 20) -> list:
+async def get_cached_news(symbol: str | None = None, limit: int = 20) -> list:
     """从 SQLite 读取已持久化的新闻（历史回退用）"""
     try:
         from ..services.db import get_db
@@ -434,8 +433,8 @@ async def get_stock_news(symbol: str) -> dict:
     # 最近新闻不足时，翻页搜索更久远的历史新闻
     if len(all_news) < 5:
         try:
-            from .symbol import pure_code
             from .stock_lookup import resolve
+            from .symbol import pure_code
             code = pure_code(symbol)
             info = resolve(code) or {}
             kw = info.get("name") or code

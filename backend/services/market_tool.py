@@ -7,15 +7,14 @@
 """
 import logging
 import re
-from typing import Dict, List, Optional
 
 from .data_source_manager import data_source_manager
 
 logger = logging.getLogger(__name__)
-from .indices import get_cached_indices, get_market_sentiment, TRACKED_INDICES
+from . import db
+from .indices import get_cached_indices, get_market_sentiment
 from .symbol import normalize_symbol, pure_code
 from .trading_time import TradingTimeChecker
-from . import db
 
 # 市场/大盘类关键词
 _MARKET_KEYWORDS = {
@@ -39,7 +38,7 @@ def _looks_like_market_query(query: str) -> bool:
     return False
 
 
-async def get_stock_realtime(symbol: str) -> Optional[dict]:
+async def get_stock_realtime(symbol: str) -> dict | None:
     """获取单只股票实时行情"""
     code = pure_code(symbol)
     if not code:
@@ -84,7 +83,7 @@ async def get_index_overview() -> dict:
     }
 
 
-async def get_watchlist_snapshot(user_id: str) -> List[dict]:
+async def get_watchlist_snapshot(user_id: str) -> list[dict]:
     """获取用户自选股的实时行情快照"""
     watchlist = await db.get_watchlist(user_id)
     if not watchlist:
@@ -130,7 +129,7 @@ async def search_market(query: str, user_id: str = "default") -> dict:
 
     # 2. 尝试提取股票代码或名称
     try:
-        symbol, name = normalize_symbol(query), None
+        symbol = normalize_symbol(query)
         # normalize_symbol 返回带前缀代码；进一步拿名称
         if symbol:
             rt = await get_stock_realtime(symbol)

@@ -15,13 +15,12 @@
       ...
 """
 import asyncio
-import time as _time
-from datetime import datetime, timezone, timedelta
-from typing import Dict, List, Optional, AsyncGenerator
 import logging
+from collections.abc import AsyncGenerator
+from datetime import datetime, timedelta, timezone
 
-from .trading_time import TradingTimeChecker
 from . import db as db_service
+from .trading_time import TradingTimeChecker
 
 logger = logging.getLogger(__name__)
 
@@ -31,21 +30,27 @@ BJT = timezone(timedelta(hours=8))
 class DataSnapshot:
     """一次数据快照 — 所有 Agent 共享的统一视图"""
     __slots__ = (
-        "timestamp", "account", "positions", "active_orders",
-        "watchlist", "live_prices", "indices", "is_trading",
+        "account",
+        "active_orders",
         "data_sources",  # 标注各字段来源（db/cache/live/api）
+        "indices",
+        "is_trading",
+        "live_prices",
+        "positions",
+        "timestamp",
+        "watchlist",
     )
 
     def __init__(self):
         self.timestamp: str = ""
-        self.account: Optional[dict] = None
-        self.positions: List[dict] = []
-        self.active_orders: List[dict] = []
-        self.watchlist: List[dict] = []
-        self.live_prices: Dict[str, dict] = {}
-        self.indices: Dict[str, dict] = {}
+        self.account: dict | None = None
+        self.positions: list[dict] = []
+        self.active_orders: list[dict] = []
+        self.watchlist: list[dict] = []
+        self.live_prices: dict[str, dict] = {}
+        self.indices: dict[str, dict] = {}
         self.is_trading: bool = False
-        self.data_sources: Dict[str, str] = {}
+        self.data_sources: dict[str, str] = {}
 
     def to_context_text(self) -> str:
         """生成注入 LLM 的上下文文本"""
@@ -120,7 +125,7 @@ class DataFeed:
     async def get_snapshot(
         self,
         user_id: str,
-        symbols: Optional[List[str]] = None,
+        symbols: list[str] | None = None,
         include_prices: bool = True,
     ) -> DataSnapshot:
         """获取当前数据快照
@@ -203,7 +208,7 @@ class DataFeed:
     async def subscribe(
         self,
         user_id: str,
-        symbols: List[str],
+        symbols: list[str],
         interval: float = 1.0,
     ) -> AsyncGenerator[DataSnapshot, None]:
         """订阅实时数据推送（仅交易时段有效）

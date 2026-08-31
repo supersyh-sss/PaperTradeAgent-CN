@@ -1,6 +1,5 @@
 """大盘指数数据服务 - 上证/深证/创业板/科创50/沪深300"""
-from typing import Dict, Optional
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 
 BJT = timezone(timedelta(hours=8))
 
@@ -23,8 +22,8 @@ SECTOR_INDICES = {
 }
 
 # 全局指数缓存
-_index_cache: Dict[str, dict] = {}
-_index_cache_ts: Optional[str] = None  # 指数缓存最后更新时间（北京时间 ISO）
+_index_cache: dict[str, dict] = {}
+_index_cache_ts: str | None = None  # 指数缓存最后更新时间（北京时间 ISO）
 
 
 def get_cached_indices() -> dict:
@@ -32,12 +31,12 @@ def get_cached_indices() -> dict:
     return dict(_index_cache)
 
 
-def get_cached_indices_time() -> Optional[str]:
+def get_cached_indices_time() -> str | None:
     """获取指数缓存最后更新时间（供 Agent 时间感知）"""
     return _index_cache_ts
 
 
-def get_cached_index(symbol: str) -> Optional[dict]:
+def get_cached_index(symbol: str) -> dict | None:
     """获取单个指数"""
     return _index_cache.get(symbol)
 

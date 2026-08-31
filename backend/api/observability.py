@@ -11,14 +11,12 @@
   - 评估与运行分离：确定性评估进接口门禁，LLM-as-judge 走离线脚本
 """
 import logging
-from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
 from ..middleware.error_handler import get_current_user
-from ..services import db
-from ..services import llm_judge
+from ..services import db, llm_judge
 
 logger = logging.getLogger(__name__)
 
@@ -165,7 +163,7 @@ async def observability_overview(user_id: str = Depends(get_current_user)):
 @router.get("/traces")
 async def observability_traces(
     limit: int = Query(100, ge=1, le=500),
-    agent: Optional[str] = Query(None),
+    agent: str | None = Query(None),
     user_id: str = Depends(get_current_user),
 ):
     """链路追踪明细列表（可按 agent 过滤）。"""
@@ -179,7 +177,7 @@ async def observability_traces(
 
 @router.get("/evaluations")
 async def observability_evaluations(
-    eval_type: Optional[str] = Query(None),
+    eval_type: str | None = Query(None),
     limit: int = Query(20, ge=1, le=100),
     user_id: str = Depends(get_current_user),
 ):
@@ -195,10 +193,10 @@ async def observability_evaluations(
 class LLMJudgeRequest(BaseModel):
     """按需 LLM-as-judge 请求体。"""
     judge_type: str = "intent"  # intent | quality
-    user_input: Optional[str] = None
-    question: Optional[str] = None
-    answer: Optional[str] = None
-    reference_points: Optional[List[str]] = None
+    user_input: str | None = None
+    question: str | None = None
+    answer: str | None = None
+    reference_points: list[str] | None = None
 
 
 @router.post("/evaluations/llm-judge")

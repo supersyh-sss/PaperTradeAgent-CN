@@ -1,11 +1,9 @@
 """系统设置 API - 读取/更新 .env 配置"""
-import os
 import json
-import re
 import logging
 from datetime import date
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -101,9 +99,9 @@ def _mask_api_key(key: str) -> str:
     return key[:4] + "*" * (len(key) - 8) + key[-4:]
 
 
-def _read_env() -> Dict[str, str]:
+def _read_env() -> dict[str, str]:
     """解析 .env 文件为 {KEY: VALUE} 字典"""
-    result: Dict[str, str] = {}
+    result: dict[str, str] = {}
     if not _ENV_PATH.exists():
         return result
     with open(_ENV_PATH, "r", encoding="utf-8") as f:
@@ -118,7 +116,7 @@ def _read_env() -> Dict[str, str]:
     return result
 
 
-def _write_env(updates: Dict[str, str]) -> None:
+def _write_env(updates: dict[str, str]) -> None:
     """将 updates 合并写入 .env 文件（保留原有注释和空行尽可能）"""
     if not _ENV_PATH.exists():
         # 如果 .env 不存在，从模板创建
@@ -162,7 +160,7 @@ def _reload_env() -> None:
         logger.debug("dotenv not installed")
 
 
-def _read_last_balance_change() -> Optional[str]:
+def _read_last_balance_change() -> str | None:
     """读取上次修改初始资金的日期"""
     if not _BALANCE_CHANGE_FILE.exists():
         return None
@@ -185,8 +183,8 @@ def _write_last_balance_change(change_date: str) -> None:
 async def _get_current_total_market_value() -> float:
     """获取当前持仓总市值（所有持仓 * 当前价的总和）"""
     try:
-        from ..services.position_service import get_positions
         from ..services.live_prices import get_live_price_batch
+        from ..services.position_service import get_positions
         positions = await get_positions(user_id="default")
         if not positions:
             return 0.0
@@ -210,7 +208,7 @@ async def _get_current_total_market_value() -> float:
 
 # Pydantic Models
 class SettingsUpdateRequest(BaseModel):
-    settings: Dict[str, Any] = Field(
+    settings: dict[str, Any] = Field(
         ...,
         description="要更新的设置键值对，如 {\"DEEPSEEK_API_KEY\": \"sk-xxx\"}",
         example={"DEEPSEEK_FLASH_MODEL": "deepseek-v4-flash", "LIVE_PRICE_POLL_INTERVAL": 2},
@@ -225,7 +223,7 @@ async def get_settings(user_id: str = Depends(get_current_user)):
     env = _read_env()
 
     # 按类别分组
-    categorized: Dict[str, list] = {}
+    categorized: dict[str, list] = {}
     for key, category, label, description, val_type in _SETTING_DEFS:
         value = env.get(key, "")
         display_value = value
@@ -274,8 +272,7 @@ async def update_settings(req: SettingsUpdateRequest, user_id: str = Depends(get
             detail=f"未知的设置项: {', '.join(sorted(invalid_keys))}",
         )
 
-    env = _read_env()
-    to_write: Dict[str, str] = {}
+    to_write: dict[str, str] = {}
 
     for key, value in updates.items():
         # 跳过脱敏值

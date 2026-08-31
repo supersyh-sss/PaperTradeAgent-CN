@@ -1,9 +1,10 @@
 """新浪财经API - 备用数据源"""
-import httpx
 import re
-from typing import Dict, List
-from ..services.cache import api_limiter
+
+import httpx
+
 from ..config import HTTP_TIMEOUT_STOCK, SINA_REALTIME_URL
+from ..services.cache import api_limiter
 
 
 class SinaFinanceAPI:
@@ -24,16 +25,15 @@ class SinaFinanceAPI:
             return f"bj{code}"
         return code
 
-    async def get_realtime(self, codes: List[str]) -> Dict[str, dict]:
+    async def get_realtime(self, codes: list[str]) -> dict[str, dict]:
         """获取实时行情（新浪格式）"""
         formatted = [self._make_code(c) for c in codes]
         url = self.URL.format(codes=",".join(formatted))
 
-        async with api_limiter:
-            async with httpx.AsyncClient(timeout=HTTP_TIMEOUT_STOCK) as client:
-                resp = await client.get(url)
-                resp.encoding = "gbk"
-                text = resp.text
+        async with api_limiter, httpx.AsyncClient(timeout=HTTP_TIMEOUT_STOCK) as client:
+            resp = await client.get(url)
+            resp.encoding = "gbk"
+            text = resp.text
 
         results = {}
         pattern = re.compile(r'var hq_str_(\w+)="([^"]*)"')
@@ -68,7 +68,7 @@ class SinaFinanceAPI:
             }
         return results
 
-    def _safe_float(self, fields: List[str], idx: int) -> float:
+    def _safe_float(self, fields: list[str], idx: int) -> float:
         try:
             return float(fields[idx]) if fields[idx] else 0.0
         except (ValueError, IndexError):

@@ -1,8 +1,18 @@
 """Comprehensive multi-round tests: 36+ cases across chat, multi-agent, orders, watchlist, edge cases.
 Designed for self-checking loop with increasing test coverage.
+
+NOTE: 集成测试脚本，需要真实后端服务运行（python tests/test_comprehensive.py）。
+pytest 通过 __test__ = False 跳过收集。
 """
-import asyncio, httpx, json, sys, time, traceback
+import asyncio
+import json
+import sys
+import time
 from collections import defaultdict
+
+import httpx
+
+__test__ = False  # 集成脚本，非 pytest 单测，禁止收集
 
 BASE = "http://localhost:8001/api"
 AUTH = {"Authorization": "Bearer mvp_test_token_2026"}
@@ -15,12 +25,12 @@ round_num = 0
 async def post_json(client, path, data):
     r = await client.post(f"{BASE}{path}", json=data, timeout=TIMEOUT)
     try: return r.json()
-    except: return {"_raw": r.text[:200]}
+    except Exception: return {"_raw": r.text[:200]}
 
 async def get_json(client, path):
     r = await client.get(f"{BASE}{path}", timeout=TIMEOUT)
     try: return r.json()
-    except: return {"_raw": r.text[:200]}
+    except Exception: return {"_raw": r.text[:200]}
 
 async def sse_collect(client, message, conv_id=None):
     """Collect all SSE events from chat stream."""
@@ -33,7 +43,7 @@ async def sse_collect(client, message, conv_id=None):
             async for line in resp.aiter_lines():
                 if line.startswith("data: "):
                     try: events.append(json.loads(line[6:]))
-                    except: pass
+                    except Exception: pass
     except Exception as e:
         events.append({"type": "_stream_error", "message": str(e)[:100]})
     return events
@@ -44,7 +54,7 @@ def analyze_events(events):
     errors = [e for e in events if e.get("type") == "error"]
     stream_errors = [e for e in events if e.get("type") == "_stream_error"]
     agent_starts = [e for e in events if e.get("type") == "agent_log_start"]
-    agent_ends = [e for e in events if e.get("type") == "agent_log_end"]
+    [e for e in events if e.get("type") == "agent_log_end"]
     
     # Collect agent content
     agent_contents = defaultdict(str)
@@ -75,7 +85,7 @@ async def test(name, fn, *, critical=False):
             marker = " [CRITICAL]" if critical else ""
             print(f"  ✗ [{stats['passed']}/{stats['passed']+stats['failed']}] {name}{marker}")
         return result
-    except asyncio.TimeoutError:
+    except TimeoutError:
         stats["failed"] += 1
         stats["errors"].append(f"{name} (timeout)")
         print(f"  ✗ {name}: TIMEOUT")
@@ -513,7 +523,7 @@ async def main(rounds: int = 1):
     
     # ── Final Report ──
     print(f"\n{'='*60}")
-    print(f"FINAL REPORT")
+    print("FINAL REPORT")
     print(f"{'='*60}")
     print(f"Total: {stats['passed'] + stats['failed']} tests")
     print(f"Passed:  {stats['passed']}")
@@ -533,9 +543,9 @@ async def main(rounds: int = 1):
             print(f"  ... and {len(stats['warnings']) - 5} more")
     
     result = "ALL PASSED" if all_pass else "SOME FAILED"
-    print(f"\n  ╔════════════════════╗")
+    print("\n  ╔════════════════════╗")
     print(f"  ║  {result:<18} ║")
-    print(f"  ╚════════════════════╝")
+    print("  ╚════════════════════╝")
     
     return all_pass
 

@@ -9,10 +9,10 @@
 """
 
 import json as json_mod
-from enum import Enum
-from typing import Dict, Any, Optional, List
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import Enum
+from typing import Any
 
 
 class FeedbackLevel(Enum):
@@ -29,11 +29,11 @@ class FeedbackPackage:
     phase: str           # "planning" | "execution" | "reflection"
     level: FeedbackLevel = FeedbackLevel.SUCCESS
     summary: str = ""
-    data: Dict[str, Any] = field(default_factory=dict)
-    errors: List[str] = field(default_factory=list)
-    warnings: List[str] = field(default_factory=list)
-    suggestions: List[str] = field(default_factory=list)
-    metrics: Dict[str, Any] = field(default_factory=dict)
+    data: dict[str, Any] = field(default_factory=dict)
+    errors: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    suggestions: list[str] = field(default_factory=list)
+    metrics: dict[str, Any] = field(default_factory=dict)
     timestamp: str = ""
 
     def __post_init__(self):
@@ -64,8 +64,8 @@ class FeedbackAssembler:
 
     @staticmethod
     def success(
-        agent_name: str, phase: str, summary: str = "", data: Optional[Dict] = None,
-        metrics: Optional[Dict] = None,
+        agent_name: str, phase: str, summary: str = "", data: dict | None = None,
+        metrics: dict | None = None,
     ) -> FeedbackPackage:
         """构造成功反馈"""
         return FeedbackPackage(
@@ -76,8 +76,8 @@ class FeedbackAssembler:
 
     @staticmethod
     def warning(
-        agent_name: str, phase: str, summary: str, warnings: List[str],
-        data: Optional[Dict] = None,
+        agent_name: str, phase: str, summary: str, warnings: list[str],
+        data: dict | None = None,
     ) -> FeedbackPackage:
         """构造警告反馈"""
         return FeedbackPackage(
@@ -88,9 +88,9 @@ class FeedbackAssembler:
 
     @staticmethod
     def error(
-        agent_name: str, phase: str, errors: List[str],
-        suggestions: Optional[List[str]] = None,
-        fallback_data: Optional[Dict] = None,
+        agent_name: str, phase: str, errors: list[str],
+        suggestions: list[str] | None = None,
+        fallback_data: dict | None = None,
     ) -> FeedbackPackage:
         """构造错误反馈（含降级建议）"""
         return FeedbackPackage(
@@ -104,7 +104,7 @@ class FeedbackAssembler:
 
     @staticmethod
     def fatal(
-        agent_name: str, phase: str, errors: List[str],
+        agent_name: str, phase: str, errors: list[str],
     ) -> FeedbackPackage:
         """构造致命错误反馈"""
         return FeedbackPackage(
@@ -116,7 +116,7 @@ class FeedbackAssembler:
         )
 
     @staticmethod
-    def aggregate(feedbacks: List[FeedbackPackage]) -> str:
+    def aggregate(feedbacks: list[FeedbackPackage]) -> str:
         """聚合多个反馈包为一段注入文本"""
         parts = ["=== Execution Feedback Report ==="]
         for fb in feedbacks:

@@ -3,7 +3,6 @@
 在原有 MA/RSI/MACD/布林带基础上，补齐 ATR/KDJ/ROC/Williams%R/CCI/OBV/ADX
 等专业指标，并用「多信号加权评分」做集成，降低单指标噪声、提升预测稳定性。
 """
-from typing import List, Dict, Optional
 
 import numpy as np
 import pandas as pd
@@ -153,7 +152,7 @@ def detect_regime(close: pd.Series, adx: float, period: int = 20) -> str:
     return "range"
 
 
-def compute_extended_indicators(kline_data: List[dict]) -> Optional[dict]:
+def compute_extended_indicators(kline_data: list[dict]) -> dict | None:
     """对 K 线计算扩展指标，返回结构化结果（供技术面合并与评分）。"""
     if not kline_data or len(kline_data) < 20:
         return None

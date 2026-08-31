@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
 import { useChatStore, hashContent } from "../stores/chatStore";
 import type { AgentLog, TradingStatus } from "../api/client";
 import { api } from "../api/client";
 import Sidebar from "./Sidebar";
-import StockDetail from "./StockDetail";
 import TradePanel from "./TradePanel";
+
+/* StockDetail 内含 echarts（~900KB），按需懒加载，避免拖慢首屏 */
+const StockDetail = lazy(() => import("./StockDetail"));
 import TradeConfirmPanel from "./TradeConfirmPanel";
 import ActionConfirmPanel from "./ActionConfirmPanel";
 import SettingsDialog from "./SettingsDialog";
@@ -613,7 +615,13 @@ export default function ChatArea() {
         {stock ? (
           tab === "trade"
             ? <TradePanel symbol={stock.symbol} name={stock.name} />
-            : <StockDetail symbol={stock.symbol} name={stock.name} onClose={() => {}} />
+            : (
+              <Suspense fallback={
+                <div className="flex-1 flex items-center justify-center text-text-muted text-[12px]">K线加载中…</div>
+              }>
+                <StockDetail symbol={stock.symbol} name={stock.name} onClose={() => {}} />
+              </Suspense>
+            )
         ) : (
           <div className="flex-1 flex items-center justify-center text-text-muted text-[12px]">暂无自选股，请先添加</div>
         )}

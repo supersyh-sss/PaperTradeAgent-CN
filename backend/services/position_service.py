@@ -4,7 +4,6 @@
 避免在 main.py、trade_executor.py、trade.py 中重复实现相同逻辑。
 """
 from datetime import date
-from typing import Optional, Tuple
 
 from . import db
 from .symbol import pure_code
@@ -14,7 +13,7 @@ def _today_str() -> str:
     return date.today().isoformat()
 
 
-def compute_sellable(position: Optional[dict]) -> Tuple[int, int]:
+def compute_sellable(position: dict | None) -> tuple[int, int]:
     """计算持仓的 T+1 冻结数量和可卖数量。
 
     以 t1_date 记录冻结买入的日期：仅当 t1_date 为今天才视为 T+1 冻结。
@@ -48,10 +47,10 @@ async def apply_trade_fill(
     amount: float,
     *,
     order_type: str = "MARKET",
-    order_id: Optional[str] = None,
-    estimated_note: Optional[str] = None,
-    t1_restricted: Optional[bool] = None,
-    lock_price: Optional[float] = None,
+    order_id: str | None = None,
+    estimated_note: str | None = None,
+    t1_restricted: bool | None = None,
+    lock_price: float | None = None,
     fee: float = 0.0,
 ) -> dict:
     """统一处理一次成交/交易后的资金和持仓结算。

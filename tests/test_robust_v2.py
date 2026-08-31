@@ -1,7 +1,14 @@
-"""Comprehensive robustness tests v2: watchlist, orders, agent chat with context, multi-agent."""
+"""Comprehensive robustness tests v2: watchlist, orders, agent chat with context, multi-agent.
+
+NOTE: 集成测试脚本，需要真实后端服务运行（python tests/test_robust_v2.py）。
+pytest 通过 __test__ = False 跳过收集。
+"""
 import asyncio
-import httpx
 import json
+
+import httpx
+
+__test__ = False  # 集成脚本，非 pytest 单测，禁止收集
 
 BASE = "http://localhost:8001/api"
 USER = "test_robust_v2"
@@ -17,7 +24,7 @@ async def sse_collect(client, message):
         async for line in resp.aiter_lines():
             if line.startswith("data: "):
                 try: events.append(json.loads(line[6:]))
-                except: pass
+                except Exception: pass
     return events
 
 def analyze(events):
@@ -58,33 +65,33 @@ async def main():
         print("\n=== 2. Basic Agent Chat (with context) ===")
         async def _():
             e = await sse_collect(c, "你好")
-            intent, ok, agents = analyze(e)
+            intent, ok, _agents = analyze(e)
             return ok and intent in ("chat", "watchlist")
         results.append(await test("Greeting '你好'", _))
 
         async def _():
             e = await sse_collect(c, "@风控 我的持仓情况怎么样")
-            intent, ok, agents = analyze(e)
+            intent, ok, _agents = analyze(e)
             return ok and intent == "direct_agent"
         results.append(await test("Direct agent: portfolio monitor @风控", _))
 
         async def _():
             e = await sse_collect(c, "@量化 帮我看看我的自选股里有哪些值得关注的")
-            intent, ok, agents = analyze(e)
+            intent, ok, _agents = analyze(e)
             return ok and intent == "direct_agent"
         results.append(await test("Direct agent: quant researcher @量化", _))
 
         print("\n=== 3. Multi-Agent @mention ===")
         async def _():
             e = await sse_collect(c, "@量化 @交易 一起看看自选股里有什么交易机会")
-            intent, ok, agents = analyze(e)
+            _intent, ok, _agents = analyze(e)
             # Should detect multi-agent and route to chief
             return ok
         results.append(await test("Multi-agent: @量化 @交易", _))
 
         async def _():
             e = await sse_collect(c, "@首席 @情报 今天市场有什么消息")
-            intent, ok, agents = analyze(e)
+            _intent, ok, _agents = analyze(e)
             return ok
         results.append(await test("Multi-agent: @助手 @情报", _))
 
@@ -127,13 +134,13 @@ async def main():
         print("\n=== 5. Context-Aware Agent Chat ===")
         async def _():
             e = await sse_collect(c, "@交易 我现在有哪些挂单")
-            intent, ok, agents = analyze(e)
+            _intent, ok, _agents = analyze(e)
             return ok
         results.append(await test("Trade agent aware of active orders", _))
 
         async def _():
             e = await sse_collect(c, "撤单" + (orders[0].get("order_id","") if orders else ""))
-            intent, ok, agents = analyze(e)
+            _intent, ok, _agents = analyze(e)
             return ok
         results.append(await test("Cancel order via chat", _))
 

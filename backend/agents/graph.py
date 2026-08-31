@@ -1,26 +1,32 @@
 """LangGraph 状态图 — v2: asyncio.gather 并行 Agent 编排"""
 
 import logging
-from langgraph.graph import StateGraph, END
 
-from .state import AgentState, create_initial_state
+from langgraph.graph import END, StateGraph
+
 from .chief_strategist import chief_strategist_node
-from .trade_executor import trade_executor_node, execute_trade_node
+from .dispatcher import PARALLEL_AGENTS, dispatch_parallel_agents
 from .response_generator import response_generator_node
-from .dispatcher import dispatch_parallel_agents, PARALLEL_AGENTS
+from .state import AgentState
+from .trade_executor import execute_trade_node, trade_executor_node
 
 logger = logging.getLogger(__name__)
 
 # Agent Chat Node (internal import for cleanliness)
-import re
 import random as _random
+import re
 from datetime import datetime
-from ..services.llm import deepseek
-from ..services.db import get_watchlist, get_all_positions, get_account, get_active_orders_db
-from ..services.trading_time import TradingTimeChecker
-from .prompts import AGENT_CHAT_SYSTEM, AGENT_PROFILES
 
-from .utils import AGENT_FOLLOWUP_POOLS as _AGENT_FOLLOWUP_POOLS, FALLBACK_FOLLOWUPS as _FALLBACK_FOLLOWUPS
+from ..services.db import (
+    get_account,
+    get_active_orders_db,
+    get_all_positions,
+    get_watchlist,
+)
+from ..services.llm import deepseek
+from .prompts import AGENT_CHAT_SYSTEM, AGENT_PROFILES
+from .utils import AGENT_FOLLOWUP_POOLS as _AGENT_FOLLOWUP_POOLS
+from .utils import FALLBACK_FOLLOWUPS as _FALLBACK_FOLLOWUPS
 
 _AGENT_SELF_INTRO = {
     "chief_strategist": "我是首席策略官，负责统筹全局、识别你的意图并调度各专业 Agent。你可以直接问我大盘、个股或持仓相关的问题。",
@@ -103,7 +109,11 @@ async def agent_chat_node(state: AgentState) -> AgentState:
     # 市场情报 Agent：注入大盘指数数据
     if agent_key == "market_intelligence":
         try:
-            from ..services.indices import get_cached_indices, get_market_sentiment, get_cached_indices_time
+            from ..services.indices import (
+                get_cached_indices,
+                get_cached_indices_time,
+                get_market_sentiment,
+            )
             indices = get_cached_indices()
             sentiment = get_market_sentiment()
             if indices:
@@ -234,7 +244,7 @@ def _run_quality_gate(state: AgentState) -> list:
     L3 落地：dispatcher 采用 asyncio.gather 在单节点内合并结果，
     quant_assessment 等字段不再丢失，质量门可安全判定并驱动重试。
     """
-    from .quality_gate import check_agent_output, QualityStatus
+    from .quality_gate import QualityStatus, check_agent_output
 
     needed = state.get("needed_agents", [])
     degraded = []

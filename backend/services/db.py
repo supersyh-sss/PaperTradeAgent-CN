@@ -1,13 +1,13 @@
 """数据库服务 - SQLite 异步操作"""
-import aiosqlite
 import logging
 import os
-from datetime import date
-from typing import Optional, Dict, List
+
+import aiosqlite
 
 logger = logging.getLogger(__name__)
 
 from ..config import DB_PATH as _cfg_db_path
+
 DB_PATH = _cfg_db_path
 SCHEMA_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "database", "schema.sql")
 
@@ -123,7 +123,7 @@ async def get_db() -> aiosqlite.Connection:
 
 # ---- 账户操作 ----
 
-async def get_account(user_id: str = "default") -> Optional[dict]:
+async def get_account(user_id: str = "default") -> dict | None:
     db = await get_db()
     try:
         cursor = await db.execute("SELECT * FROM accounts WHERE user_id = ?", (user_id,))
@@ -147,7 +147,7 @@ async def update_account_balance(user_id: str, balance: float, total_assets: flo
 
 # ---- 自选股操作 ----
 
-async def get_watchlist(user_id: str = "default") -> List[dict]:
+async def get_watchlist(user_id: str = "default") -> list[dict]:
     db = await get_db()
     try:
         cursor = await db.execute("SELECT * FROM watchlist WHERE user_id = ? ORDER BY added_at", (user_id,))
@@ -190,7 +190,7 @@ async def is_in_watchlist(user_id: str, symbol: str) -> bool:
 
 # ---- 持仓操作 ----
 
-async def get_position(user_id: str, symbol: str) -> Optional[dict]:
+async def get_position(user_id: str, symbol: str) -> dict | None:
     db = await get_db()
     try:
         cursor = await db.execute(
@@ -202,7 +202,7 @@ async def get_position(user_id: str, symbol: str) -> Optional[dict]:
         await db.close()
 
 
-async def get_all_positions(user_id: str = "default") -> List[dict]:
+async def get_all_positions(user_id: str = "default") -> list[dict]:
     db = await get_db()
     try:
         cursor = await db.execute(
@@ -215,8 +215,8 @@ async def get_all_positions(user_id: str = "default") -> List[dict]:
 
 async def upsert_position(user_id: str, symbol: str, name: str, quantity: int,
                           avg_cost: float, total_cost: float, buy_date: str,
-                          latest_price: float = None, t1_quantity: int = 0,
-                          t1_date: str = None):
+                          latest_price: float | None = None, t1_quantity: int = 0,
+                          t1_date: str | None = None):
     db = await get_db()
     try:
         market_value = round(quantity * (latest_price or avg_cost), 2)
@@ -274,7 +274,7 @@ async def update_position_prices(user_id: str, symbol: str, latest_price: float)
         await db.close()
 
 
-async def reset_t1_quantities(user_id: str = None):
+async def reset_t1_quantities(user_id: str | None = None):
     """每个交易日开盘时将全部持仓的 t1_quantity 清零（前一日买入已可卖）"""
     db = await get_db()
     try:
@@ -296,9 +296,9 @@ async def reset_t1_quantities(user_id: str = None):
 
 async def insert_trade(user_id: str, symbol: str, name: str, side: str, order_type: str,
                        quantity: int, price: float, amount: float, is_trading_time: bool = True,
-                       estimated_note: str = None, t1_restricted: bool = False,
-                       status: str = "FILLED", order_id: str = None,
-                       lock_price: float = None, realized_pnl: float = None) -> int:
+                       estimated_note: str | None = None, t1_restricted: bool = False,
+                       status: str = "FILLED", order_id: str | None = None,
+                       lock_price: float | None = None, realized_pnl: float | None = None) -> int:
     """插入交易记录"""
     db = await get_db()
     try:
@@ -380,7 +380,7 @@ async def update_trade_status(trade_id, status: str):
 # ---- 消息反馈 ----
 
 async def upsert_feedback(user_id: str, agent: str, content: str, content_hash: str,
-                          feedback: str, conversation_id: str = None):
+                          feedback: str, conversation_id: str | None = None):
     """写入或更新用户对 Agent 输出的反馈（up/down）"""
     db = await get_db()
     try:
@@ -397,7 +397,7 @@ async def upsert_feedback(user_id: str, agent: str, content: str, content_hash: 
         await db.close()
 
 
-async def get_feedback(user_id: str) -> List[dict]:
+async def get_feedback(user_id: str) -> list[dict]:
     """获取用户全部反馈记录（不含 content 原文，避免过大）"""
     db = await get_db()
     try:
@@ -424,7 +424,7 @@ async def delete_feedback(user_id: str, content_hash: str):
         await db.close()
 
 
-async def get_active_orders_db(user_id: str = None) -> List[dict]:
+async def get_active_orders_db(user_id: str | None = None) -> list[dict]:
     """获取所有活跃订单（PENDING / PARTIALLY_FILLED / ACCEPTED）"""
     db = await get_db()
     try:
@@ -441,7 +441,7 @@ async def get_active_orders_db(user_id: str = None) -> List[dict]:
         await db.close()
 
 
-async def get_all_orders_db(user_id: str = None, status_filter: list = None, limit: int = None) -> List[dict]:
+async def get_all_orders_db(user_id: str | None = None, status_filter: list | None = None, limit: int | None = None) -> list[dict]:
     """获取订单列表（支持状态筛选与条数上限，避免海量订单全量加载）"""
     db = await get_db()
     try:
@@ -465,7 +465,7 @@ async def get_all_orders_db(user_id: str = None, status_filter: list = None, lim
         await db.close()
 
 
-async def get_recent_trades(user_id: str = "default", limit: int = 50) -> List[dict]:
+async def get_recent_trades(user_id: str = "default", limit: int = 50) -> list[dict]:
     """获取最近交易记录"""
     db = await get_db()
     try:
@@ -510,7 +510,7 @@ async def get_locked_states(user_id: str) -> dict:
         await db.close()
 
 
-async def clear_locked_state(user_id: str, state_key: str = None):
+async def clear_locked_state(user_id: str, state_key: str | None = None):
     """清除锁定状态"""
     db = await get_db()
     try:
@@ -542,7 +542,7 @@ async def save_portfolio_snapshot(user_id: str, snapshot_date: str, total_market
         await db.close()
 
 
-async def get_portfolio_history(user_id: str = "default", days: int = 30) -> List[dict]:
+async def get_portfolio_history(user_id: str = "default", days: int = 30) -> list[dict]:
     db = await get_db()
     try:
         cursor = await db.execute(
@@ -578,7 +578,7 @@ async def update_conversation_title(conv_id: str, title: str):
     finally:
         await db.close()
 
-async def save_message(conv_id: str, role: str, content: str, agent_name: str = None, agent_emoji: str = None, metadata: str = None):
+async def save_message(conv_id: str, role: str, content: str, agent_name: str | None = None, agent_emoji: str | None = None, metadata: str | None = None):
     db = await get_db()
     try:
         await db.execute(
@@ -593,7 +593,7 @@ async def save_message(conv_id: str, role: str, content: str, agent_name: str = 
     finally:
         await db.close()
 
-async def get_conversation_messages(conv_id: str) -> List[dict]:
+async def get_conversation_messages(conv_id: str) -> list[dict]:
     db = await get_db()
     try:
         cursor = await db.execute(
@@ -604,7 +604,7 @@ async def get_conversation_messages(conv_id: str) -> List[dict]:
     finally:
         await db.close()
 
-async def get_user_conversations(user_id: str = "default", limit: int = 20) -> List[dict]:
+async def get_user_conversations(user_id: str = "default", limit: int = 20) -> list[dict]:
     db = await get_db()
     try:
         cursor = await db.execute(
@@ -626,7 +626,7 @@ async def delete_conversation(conv_id: str):
 
 # Conversation Memory Management
 
-from ..config import MAX_RECENT_MESSAGES, MAX_TOTAL_MESSAGES, SUMMARY_TRIM_THRESHOLD
+from ..config import MAX_RECENT_MESSAGES, SUMMARY_TRIM_THRESHOLD
 
 
 async def get_conversation_context(conversation_id: str) -> dict:
@@ -661,7 +661,7 @@ async def get_conversation_context(conversation_id: str) -> dict:
     return {"recent_messages": recent, "summary": summary, "total_messages": total}
 
 
-async def _get_stored_summary(conversation_id: str) -> Optional[str]:
+async def _get_stored_summary(conversation_id: str) -> str | None:
     db = await get_db()
     try:
         cursor = await db.execute(
@@ -734,7 +734,7 @@ async def _generate_summary(older_messages: list, existing_summary: str) -> str:
 
 async def save_agent_memory(user_id: str, agent_key: str, symbol: str,
                             query_hash: str, result: str, expires_at: str,
-                            query: str = None, embedding: str = None) -> None:
+                            query: str | None = None, embedding: str | None = None) -> None:
     """INSERT OR REPLACE agent memory entry"""
     db = await get_db()
     try:
@@ -750,7 +750,7 @@ async def save_agent_memory(user_id: str, agent_key: str, symbol: str,
 
 
 async def refresh_agent_memory(memory_id: int, result: str, expires_at: str,
-                               query: str = None, embedding: str = None) -> None:
+                               query: str | None = None, embedding: str | None = None) -> None:
     """刷新一条既有记忆（跨会话去重命中时更新结果与 TTL，避免重复堆积）。"""
     db = await get_db()
     try:
@@ -767,7 +767,7 @@ async def refresh_agent_memory(memory_id: int, result: str, expires_at: str,
 
 
 async def list_agent_memory(user_id: str, agent_key: str,
-                            symbol: str = None, limit: int = 20) -> List[dict]:
+                            symbol: str | None = None, limit: int = 20) -> list[dict]:
     """列出某 agent 的近期有效记忆（用于语义检索候选集）"""
     db = await get_db()
     try:
@@ -878,7 +878,7 @@ async def record_agent_trace(trace_id: str, agent: str, status: str = "ok",
         await db.close()
 
 
-async def get_agent_traces(trace_id: str = None, agent: str = None, limit: int = 100) -> List[dict]:
+async def get_agent_traces(trace_id: str | None = None, agent: str | None = None, limit: int = 100) -> list[dict]:
     """查询 Agent 执行链路追踪"""
     db = await get_db()
     try:
@@ -909,7 +909,7 @@ async def get_metrics_summary() -> dict:
             FROM agent_traces GROUP BY agent, status
         """)
         rows = await cursor.fetchall()
-        by_agent: Dict[str, dict] = {}
+        by_agent: dict[str, dict] = {}
         total = 0
         total_ok = 0
         total_failed = 0
@@ -984,7 +984,7 @@ async def _compute_intent_breakdown() -> dict:
             """SELECT intent, status, COUNT(*) as cnt
                FROM agent_traces WHERE intent != '' GROUP BY intent, status"""
         )
-        by_intent: Dict[str, dict] = {}
+        by_intent: dict[str, dict] = {}
         for r in await cursor.fetchall():
             r = dict(r)
             intent = r["intent"]
@@ -1015,7 +1015,7 @@ async def record_eval_result(eval_type: str, mode: str, total: int, correct: int
         await db.close()
 
 
-async def get_eval_results(eval_type: str = None, limit: int = 20) -> List[dict]:
+async def get_eval_results(eval_type: str | None = None, limit: int = 20) -> list[dict]:
     """读取历史评估结果（按时间倒序）。"""
     db = await get_db()
     try:
@@ -1037,7 +1037,7 @@ async def get_eval_results(eval_type: str = None, limit: int = 20) -> List[dict]
 
 async def create_scheduled_task(user_id: str, name: str, agent_key: str, prompt: str,
                                 schedule_type: str = "interval", interval_seconds: int = 3600,
-                                daily_time: str = None, next_run_at: str = None) -> dict:
+                                daily_time: str | None = None, next_run_at: str | None = None) -> dict:
     """创建定时任务，返回完整记录"""
     db = await get_db()
     try:
@@ -1056,7 +1056,7 @@ async def create_scheduled_task(user_id: str, name: str, agent_key: str, prompt:
         await db.close()
 
 
-async def list_scheduled_tasks(user_id: str = "default") -> List[dict]:
+async def list_scheduled_tasks(user_id: str = "default") -> list[dict]:
     db = await get_db()
     try:
         cursor = await db.execute(
@@ -1067,7 +1067,7 @@ async def list_scheduled_tasks(user_id: str = "default") -> List[dict]:
         await db.close()
 
 
-async def get_scheduled_task(task_id: int, user_id: str = "default") -> Optional[dict]:
+async def get_scheduled_task(task_id: int, user_id: str = "default") -> dict | None:
     db = await get_db()
     try:
         cursor = await db.execute(
@@ -1112,7 +1112,7 @@ async def delete_scheduled_task(task_id: int, user_id: str = "default") -> bool:
         await db.close()
 
 
-async def get_due_scheduled_tasks(now_iso: str = None) -> List[dict]:
+async def get_due_scheduled_tasks(now_iso: str | None = None) -> list[dict]:
     """获取到期应执行的任务（active 且 next_run_at <= now，或从未运行）"""
     db = await get_db()
     try:

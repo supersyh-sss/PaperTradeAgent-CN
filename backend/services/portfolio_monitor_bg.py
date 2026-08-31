@@ -15,13 +15,13 @@ import asyncio
 import json
 import logging
 import time as _time
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 
 from . import db as db_service
-from .trading_time import TradingTimeChecker
 from .live_prices import get_cached_price
-from .symbol import pure_code
 from .session_manager import get_active_session, push_system_message
+from .symbol import pure_code
+from .trading_time import TradingTimeChecker
 
 BJT = timezone(timedelta(hours=8))
 logger = logging.getLogger(__name__)
@@ -92,9 +92,9 @@ async def _emit(suggestion: dict):
 
 
 def _build_suggestion(severity: str, title: str, message: str, action: str,
-                      symbol: str = None, name: str = None,
-                      suggested_prompt: str = None,
-                      positions: list = None, total_pnl_pct: float = 0.0) -> dict:
+                      symbol: str | None = None, name: str | None = None,
+                      suggested_prompt: str | None = None,
+                      positions: list | None = None, total_pnl_pct: float = 0.0) -> dict:
     """组装一条结构化的纪律建议（供前端渲染风控卡片与一键操作）。"""
     return {
         "severity": severity,
@@ -239,7 +239,7 @@ async def start_portfolio_monitor():
 
         except asyncio.CancelledError:
             raise
-        except Exception as e:
-            logger.error(f"持仓监控异常: {e}", exc_info=True)
+        except Exception:
+            logger.exception("持仓监控异常")
 
         await asyncio.sleep(interval)

@@ -38,8 +38,8 @@ def _compute_next_run(task: dict, from_time: datetime) -> str:
 
 async def _execute_prompt(user_input: str, user_id: str) -> str:
     """复用 LangGraph 主链路执行一段提示，返回最终回复文本。"""
-    from ..agents.state import create_initial_state
     from ..agents.graph import trading_graph
+    from ..agents.state import create_initial_state
 
     state = create_initial_state(user_input, user_id)
     try:
@@ -48,16 +48,15 @@ async def _execute_prompt(user_input: str, user_id: str) -> str:
         logger.warning("定时任务图执行失败: %s", e)
         return f"任务执行出错：{e}"
 
-    intent = result.get("intent", "chat")
     needs_report = result.get("needs_report", False)
 
     if not needs_report:
         from ..api.chat import _generate_non_report_reply
         return await _generate_non_report_reply(result)
 
+    from ..agents.prompts import RESPONSE_GENERATOR_SYSTEM
     from ..agents.response_generator import _build_context
     from ..services.llm import choose_client
-    from ..agents.prompts import RESPONSE_GENERATOR_SYSTEM
 
     context = _build_context(result)
     messages = [

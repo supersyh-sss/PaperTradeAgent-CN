@@ -11,9 +11,8 @@
 import logging
 import os
 from pathlib import Path
-from typing import List, Optional
 
-from ..config import EMBEDDING_MODEL, EMBEDDING_DEVICE
+from ..config import EMBEDDING_DEVICE, EMBEDDING_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +55,7 @@ def get_embedder():
         return None
 
 
-def embed(texts: List[str]) -> Optional[List[List[float]]]:
+def embed(texts: list[str]) -> list[list[float]] | None:
     """批量向量化文本；失败返回 None。
 
     Args:
@@ -78,7 +77,7 @@ def embed(texts: List[str]) -> Optional[List[List[float]]]:
         return None
 
 
-def embed_one(text: str) -> Optional[List[float]]:
+def embed_one(text: str) -> list[float] | None:
     """向量化单条文本。"""
     res = embed([text])
     if res:

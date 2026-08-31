@@ -15,21 +15,20 @@ REPL（Read-Eval-Print Loop）容器，完整管控 Agent「感知 - 规划 - �
     持续循环直至任务完成或触发终止条件
 """
 
-import asyncio
 import logging
 import time
-from enum import Enum, auto
-from typing import Dict, Any, Optional, Callable, Awaitable, List, AsyncGenerator
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from dataclasses import dataclass, field
-from datetime import datetime
+from enum import Enum, auto
+from typing import Any
 
-from .context_manager import ContextManager, ContextPriority
-from .call_interceptor import CallInterceptor, FallbackChain
-from .feedback_assembler import FeedbackAssembler, FeedbackPackage, FeedbackLevel
-from .safety_gate import SafetyGate, AuditLogger
-from .metrics import MetricsCollector, MetricType, HarnessMetrics
-from .resilience import ResilienceManager
+from .call_interceptor import CallInterceptor
+from .context_manager import ContextManager
 from .contracts import ContractRegistry
+from .feedback_assembler import FeedbackAssembler, FeedbackLevel, FeedbackPackage
+from .metrics import MetricsCollector, MetricType
+from .resilience import ResilienceManager
+from .safety_gate import AuditLogger, SafetyGate
 
 logger = logging.getLogger(__name__)
 
@@ -50,9 +49,9 @@ class CycleResult:
     """一次 REPL 循环的结果"""
     phase: ExecutionPhase
     success: bool
-    data: Dict[str, Any] = field(default_factory=dict)
-    feedback: Optional[FeedbackPackage] = None
-    errors: List[str] = field(default_factory=list)
+    data: dict[str, Any] = field(default_factory=dict)
+    feedback: FeedbackPackage | None = None
+    errors: list[str] = field(default_factory=list)
     latency_ms: float = 0.0
     token_estimate: int = 0
 
@@ -81,11 +80,11 @@ class HarnessREPL:
 
     def __init__(
         self,
-        context_mgr: Optional[ContextManager] = None,
-        interceptor: Optional[CallInterceptor] = None,
-        safety_gate: Optional[SafetyGate] = None,
-        resilience_mgr: Optional[ResilienceManager] = None,
-        metrics: Optional[MetricsCollector] = None,
+        context_mgr: ContextManager | None = None,
+        interceptor: CallInterceptor | None = None,
+        safety_gate: SafetyGate | None = None,
+        resilience_mgr: ResilienceManager | None = None,
+        metrics: MetricsCollector | None = None,
     ):
         self._context_mgr = context_mgr or ContextManager()
         self._interceptor = interceptor or CallInterceptor()
@@ -97,8 +96,8 @@ class HarnessREPL:
     # ── Read Phase (感知管控) ──
 
     def read(
-        self, state: Dict[str, Any], system_prompt: str = "",
-        history_summary: Optional[str] = None, recent_messages: Optional[List[Dict]] = None,
+        self, state: dict[str, Any], system_prompt: str = "",
+        history_summary: str | None = None, recent_messages: list[dict] | None = None,
     ) -> str:
         """Read 阶段：结构化注入上下文，标准化 Agent 信息输入"""
         phase_start = time.time()
@@ -160,7 +159,7 @@ class HarnessREPL:
         agent_name: str,
         *llm_args,
         context: str = "",
-        permissions_check: Optional[str] = None,
+        permissions_check: str | None = None,
         user_id: str = "default",
         **llm_kwargs,
     ) -> CycleResult:
@@ -242,7 +241,7 @@ class HarnessREPL:
     async def run(
         self,
         graph_or_fn,
-        initial_state: Dict[str, Any],
+        initial_state: dict[str, Any],
         user_id: str = "default",
         max_cycles: int = 20,
         session_id: str = "",
@@ -304,7 +303,7 @@ class HarnessREPL:
                 # Streaming graph
                 result = dict(state)
                 async for chunk in graph_or_fn.astream(state):
-                    for node_name, node_update in chunk.items():
+                    for node_update in chunk.values():
                         for key, value in node_update.items():
                             if key in ("agent_logs", "messages") and isinstance(value, list):
                                 result.setdefault(key, []).extend(value)
@@ -350,8 +349,8 @@ class HarnessREPL:
             )
 
         except Exception as e:
-            logger.error(f"REPL loop error: {str(e)[:300]}", exc_info=True)
-            AuditLogger.log("repl_error", {"error": str(e)}, user_id)
+            logger.exception("REPL loop error")
+            AuditLogger.log("repl_error", {"error": str(e)[:300]}, user_id)
             self._metrics.record(MetricType.LLM_CALL_ERROR, 1)
             
             yield CycleResult(
@@ -360,7 +359,7 @@ class HarnessREPL:
                 errors=[str(e)],
                 feedback=self._feedback.fatal(
                     "harness", ExecutionPhase.EXEC.name,
-                    errors=[f"REPL loop terminated: {str(e)}"],
+                    errors=[f"REPL loop terminated: {e!s}"],
                 ),
             )
 
@@ -372,10 +371,10 @@ class HarnessREPL:
     async def run_graph_stream(
         self,
         graph,                # LangGraph compiled graph
-        state: Dict[str, Any],
+        state: dict[str, Any],
         user_id: str = "default",
         session_id: str = "",
-    ) -> AsyncGenerator[Dict[str, Any], None]:
+    ) -> AsyncGenerator[dict[str, Any], None]:
         """带 Harness 管控的 LangGraph 流式执行
         
         在 graph.astream 基础上增加：

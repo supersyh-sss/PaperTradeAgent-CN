@@ -149,7 +149,7 @@ def test_safe_int_prevents_str_int_comparison():
 
 
 def test_maybe_attach_followup_attaches_on_probability_hit():
-    from backend.agents.utils import maybe_attach_followup, AGENT_FOLLOWUP_POOLS
+    from backend.agents.utils import AGENT_FOLLOWUP_POOLS, maybe_attach_followup
 
     log = {"agent": "quant_researcher", "content": "分析完毕"}
     result = maybe_attach_followup(log, "quant_researcher", probability=1.0)

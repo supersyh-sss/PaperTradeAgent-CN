@@ -6,11 +6,11 @@
   - 可演进：契约版本化，支持平滑升级
 """
 
-from enum import Enum
-from typing import Dict, Any, Optional, List
-from dataclasses import dataclass, field
 import json as json_mod
 import logging
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any, ClassVar
 
 logger = logging.getLogger(__name__)
 
@@ -105,13 +105,13 @@ class AgentContract:
     """Agent 契约：定义输入/输出 Schema 及语义约束"""
     agent_name: str
     version: ContractVersion = ContractVersion.V1_0
-    input_schema: Optional[Dict] = None
-    output_schema: Dict = field(default_factory=dict)
+    input_schema: dict | None = None
+    output_schema: dict = field(default_factory=dict)
     description: str = ""
     max_retries: int = 3
     timeout_ms: int = 120000
 
-    def validate_output(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def validate_output(self, data: dict[str, Any]) -> dict[str, Any]:
         """验证 Agent 输出是否符合契约（轻量校验，非完整 JSON Schema）"""
         issues = []
         for key in self.output_schema.get("required", []):
@@ -145,7 +145,7 @@ class AgentContract:
 class ContractRegistry:
     """全局契约注册表 — 单例模式"""
     _instance = None
-    _contracts: Dict[str, AgentContract] = {}
+    _contracts: ClassVar[dict[str, AgentContract]] = {}
 
     def __new__(cls):
         if cls._instance is None:
@@ -191,7 +191,7 @@ class ContractRegistry:
             timeout_ms=120000,
         )
 
-    def get(self, agent_name: str) -> Optional[AgentContract]:
+    def get(self, agent_name: str) -> AgentContract | None:
         """获取 Agent 契约"""
         return self._contracts.get(agent_name)
 
@@ -200,7 +200,7 @@ class ContractRegistry:
         self._contracts[agent_name] = contract
         logger.info(f"Contract registered: {agent_name} v{contract.version.value}")
 
-    def validate(self, agent_name: str, output: Dict[str, Any]) -> tuple[Dict[str, Any], list]:
+    def validate(self, agent_name: str, output: dict[str, Any]) -> tuple[dict[str, Any], list]:
         """验证 Agent 输出是否符合契约"""
         contract = self.get(agent_name)
         if not contract:

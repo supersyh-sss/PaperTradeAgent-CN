@@ -1,39 +1,43 @@
 """FastAPI 主应用入口"""
-import sys
-import os
 import logging
+import os
+import sys
 from contextlib import asynccontextmanager
 
 # 将backend目录添加到Python路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
 from datetime import datetime
 
-from .services.db import init_db
-from .services.logging_config import configure_root_logger
-from .middleware.error_handler import global_exception_handler
-from .middleware.trace import TraceMiddleware
-from .middleware.rate_limit import RateLimitMiddleware
-from .services.task_manager import task_manager
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
 from .api.chat import router as chat_router
-from .api.trade import router as trade_router
-from .api.portfolio import router as portfolio_router
-from .api.watchlist import router as watchlist_router
-from .api.stocks import router as stocks_router
-from .api.market import router as market_router
-from .api.settings import router as settings_router
-from .api.session import router as session_router
 from .api.feedback import router as feedback_router
+from .api.market import router as market_router
 from .api.observability import router as observability_router
+from .api.portfolio import router as portfolio_router
 from .api.profile import router as profile_router
 from .api.scheduler import router as scheduler_router
+from .api.session import router as session_router
+from .api.settings import router as settings_router
+from .api.stocks import router as stocks_router
+from .api.trade import router as trade_router
+from .api.watchlist import router as watchlist_router
+from .config import CORS_ALLOW_CREDENTIALS, CORS_ALLOW_ORIGINS
+from .middleware.error_handler import global_exception_handler
+from .middleware.rate_limit import RateLimitMiddleware
+from .middleware.trace import TraceMiddleware
+from .services.db import init_db
+from .services.live_prices import (
+    _on_order_status_change,
+    set_fill_callback,
+    start_live_service,
+)
+from .services.logging_config import configure_root_logger
+from .services.order_engine import register_status_callback, restore_orders
+from .services.task_manager import task_manager
 from .services.trading_time import TradingTimeChecker
-from .services.live_prices import start_live_service, set_fill_callback, _on_order_status_change
-from .services.order_engine import restore_orders, register_status_callback
-from .config import CORS_ALLOW_ORIGINS, CORS_ALLOW_CREDENTIALS
 
 configure_root_logger(level=logging.INFO, json_format=True)
 logger = logging.getLogger(__name__)
@@ -51,7 +55,6 @@ async def lifespan(app: FastAPI):
     try:
         from .harness.metrics import MetricsCollector
         from .harness.safety_gate import AuditLogger
-        from .harness.resilience import ResilienceManager
         MetricsCollector().start_session("server_boot")
         AuditLogger.log("server_start", {"version": "0.1.0"})
         logger.info("Harness 工程框架已初始化")
@@ -94,8 +97,8 @@ async def lifespan(app: FastAPI):
 async def _on_order_filled(fill: dict):
     """订单成交回调：统一使用 position_service 完成资金和持仓结算"""
     try:
-        from .services.position_service import apply_trade_fill
         from .services.fee_calculator import calculate_fee
+        from .services.position_service import apply_trade_fill
         from .services.symbol import exchange_prefix
         user_id = fill.get("user_id", "default")
         symbol = fill.get("symbol", "")
@@ -128,8 +131,8 @@ async def _on_order_filled(fill: dict):
             f"成交回调: {result['message']} 余额{result['new_balance']:.2f} "
             f"总资产{result['total_assets']:.2f}"
         )
-    except Exception as e:
-        logger.error(f"成交回调异常: {e}", exc_info=True)
+    except Exception:
+        logger.exception("成交回调异常")
 
 
 app = FastAPI(
@@ -186,11 +189,10 @@ async def health_check():
 async def harness_status():
     """Harness 工程框架状态诊断"""
     try:
+        from .harness.contracts import ContractRegistry
         from .harness.metrics import MetricsCollector
         from .harness.safety_gate import AuditLogger
-        from .harness.resilience import ResilienceManager
         from .harness.sandbox import SandboxManager
-        from .harness.contracts import ContractRegistry
         
         metrics = MetricsCollector().get_summary()
         audit_recent = AuditLogger.get_recent(20)

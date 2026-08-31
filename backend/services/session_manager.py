@@ -3,16 +3,14 @@
 - 记录当前活跃的 conversation session
 - 提供消息队列，支持系统消息推送
 """
-import asyncio
 import logging
-from typing import Dict, Optional, List
 
 logger = logging.getLogger(__name__)
 
 # ── 全局状态 ──
-active_session_id: Optional[str] = None
+active_session_id: str | None = None
 # session_id -> list of queued messages
-_message_queues: Dict[str, list] = {}
+_message_queues: dict[str, list] = {}
 
 
 def set_active_session(session_id: str):
@@ -22,7 +20,7 @@ def set_active_session(session_id: str):
     logger.debug(f"活跃会话设置为: {session_id}")
 
 
-def get_active_session() -> Optional[str]:
+def get_active_session() -> str | None:
     """获取当前活跃会话 ID"""
     return active_session_id
 
@@ -42,7 +40,7 @@ def push_system_message(session_id: str, message: dict):
         _message_queues[session_id] = _message_queues[session_id][-100:]
 
 
-def poll_messages(session_id: str) -> List[dict]:
+def poll_messages(session_id: str) -> list[dict]:
     """获取并清空指定会话的排队消息
 
     Args:

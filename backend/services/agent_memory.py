@@ -49,7 +49,7 @@ async def _embed_query_async(query: str) -> str | None:
 
 async def save_agent_memory(user_id: str, agent_key: str, symbol: str,
                             query_hash: str, result: str,
-                            query: str = None) -> None:
+                            query: str | None = None) -> None:
     """保存 agent 记忆到 DB（附带原始 query 文本与向量，供语义检索）。
 
     L4 跨会话去重：写入前先按语义相似度查找既有有效记忆，命中则刷新旧条目，
@@ -79,9 +79,9 @@ async def save_agent_memory(user_id: str, agent_key: str, symbol: str,
 async def _find_near_duplicate(user_id: str, agent_key: str, symbol: str,
                                embedding: str) -> int | None:
     """在既有有效记忆中查找语义近似条目，返回其 id；无命中返回 None。"""
+    from ..config import AGENT_MEMORY_DEDUP_SCORE
     from . import db
     from .rag_service import _parse_vector, cosine_similarity
-    from ..config import AGENT_MEMORY_DEDUP_SCORE
 
     try:
         qvec = json.loads(embedding) if isinstance(embedding, str) else embedding
@@ -107,9 +107,9 @@ async def _find_near_duplicate(user_id: str, agent_key: str, symbol: str,
 
 
 async def get_agent_memory(user_id: str, agent_key: str,
-                           symbol: str = None,
-                           query_hash: str = None,
-                           query: str = None) -> str | None:
+                           symbol: str | None = None,
+                           query_hash: str | None = None,
+                           query: str | None = None) -> str | None:
     """两级查询 agent 内存缓存。
 
     L1：哈希精确匹配（现状，0ms）
@@ -151,7 +151,7 @@ def _qualify_memory_hit(hit: dict):
     - 命中分数低于阈值（或无分数）→ 放弃缓存，返回 None 触发实时 LLM。
     - 结果超长且为可解析 JSON → 放弃（避免截断破坏结构）；纯文本超长 → 截断到预算。
     """
-    from ..config import AGENT_MEMORY_MIN_SCORE, AGENT_MEMORY_MAX_RESULT_CHARS
+    from ..config import AGENT_MEMORY_MAX_RESULT_CHARS, AGENT_MEMORY_MIN_SCORE
 
     score = hit.get("_score")
     if score is None:

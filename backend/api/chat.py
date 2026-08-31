@@ -10,7 +10,6 @@ import json as json_mod
 import logging
 import re
 from datetime import datetime
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
@@ -18,15 +17,15 @@ from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
-from ..middleware.error_handler import get_current_user
-from ..agents.state import create_initial_state
 from ..agents.graph import trading_graph
-from ..services import db
-from ..services.symbol import pure_code
-from ..services.logging_config import get_trace_id
+from ..agents.state import create_initial_state
 
 # Harness infrastructure
-from ..harness.safety_gate import SafetyGate, AuditLogger
+from ..harness.safety_gate import AuditLogger, SafetyGate
+from ..middleware.error_handler import get_current_user
+from ..services import db
+from ..services.logging_config import get_trace_id
+from ..services.symbol import pure_code
 
 # Global harness instances
 _safety_gate = SafetyGate()
@@ -73,9 +72,9 @@ async def _generate_non_report_reply(final_state: dict) -> str:
 
     if intent in _SYNTHESIZE_INTENTS and _has_agent_output(final_state):
         try:
+            from ..agents.prompts import RESPONSE_GENERATOR_SYSTEM
             from ..agents.response_generator import _build_context
             from ..services.llm import flash_client
-            from ..agents.prompts import RESPONSE_GENERATOR_SYSTEM
             context = _build_context(final_state)
             llm_messages = [
                 {"role": "system", "content": RESPONSE_GENERATOR_SYSTEM},
@@ -89,9 +88,9 @@ async def _generate_non_report_reply(final_state: dict) -> str:
         return chief_reply
 
     try:
+        from ..agents.prompts import RESPONSE_GENERATOR_SYSTEM
         from ..agents.response_generator import _build_context
         from ..services.llm import flash_client
-        from ..agents.prompts import RESPONSE_GENERATOR_SYSTEM
         context = _build_context(final_state)
         llm_messages = [
             {"role": "system", "content": RESPONSE_GENERATOR_SYSTEM},
@@ -99,26 +98,26 @@ async def _generate_non_report_reply(final_state: dict) -> str:
         ]
         return await flash_client.chat(llm_messages, temperature=0.5, max_tokens=512)
     except Exception:
-        logger.error("Flash模型响应生成失败，使用降级回复", exc_info=True)
+        logger.exception("Flash模型响应生成失败，使用降级回复")
         return "（数据暂不可用，以下为降级提示）你好！我是A股模拟交易助手，可以帮你分析股票、模拟交易、查看持仓。请问有什么可以帮你的？"
 
 
 class ChatRequest(BaseModel):
     message: str
     execute_trade: bool = False  # 是否确认执行交易
-    trade_side: Optional[str] = None
-    trade_quantity: Optional[int] = None
-    current_time: Optional[str] = None  # ISO format: 2026-08-11T14:30:00+08:00
-    conversation_id: Optional[str] = None  # 复用已有会话ID（续接对话）
+    trade_side: str | None = None
+    trade_quantity: int | None = None
+    current_time: str | None = None  # ISO format: 2026-08-11T14:30:00+08:00
+    conversation_id: str | None = None  # 复用已有会话ID（续接对话）
 
 
 class TradeActionRequest(BaseModel):
     action: str  # "confirm" or "cancel"
-    action_type: Optional[str] = None  # trade | watchlist_add | watchlist_remove | cancel_order
-    trade_plan: Optional[dict] = None
-    data: Optional[dict] = None
-    conversation_id: Optional[str] = None
-    order_id: Optional[str] = None  # 用于撤销特定订单
+    action_type: str | None = None  # trade | watchlist_add | watchlist_remove | cancel_order
+    trade_plan: dict | None = None
+    data: dict | None = None
+    conversation_id: str | None = None
+    order_id: str | None = None  # 用于撤销特定订单
 
 
 class ReportRequest(BaseModel):
@@ -180,14 +179,13 @@ async def chat(req: ChatRequest, user_id: str = Depends(get_current_user)):
         result = await trading_graph.ainvoke(state)
     except Exception as e:
         result = state
-        result["final_response"] = f"系统处理出错: {str(e)}"
+        result["final_response"] = f"系统处理出错: {e!s}"
         result["messages"] = [
             {"role": "user", "content": req.message},
             {"role": "assistant", "content": result["final_response"], "metadata": {}}
         ]
 
     # Generate final response (graph nodes don't produce final_response text)
-    intent = result.get("intent", "chat")
     needs_report = result.get("needs_report")
     if needs_report is None:
         needs_report = False
@@ -195,9 +193,9 @@ async def chat(req: ChatRequest, user_id: str = Depends(get_current_user)):
         result["final_response"] = await _generate_non_report_reply(result)
     else:
         try:
+            from ..agents.prompts import RESPONSE_GENERATOR_SYSTEM
             from ..agents.response_generator import _build_context
             from ..services.llm import choose_client
-            from ..agents.prompts import RESPONSE_GENERATOR_SYSTEM
             context = _build_context(result)
             llm_messages = [
                 {"role": "system", "content": RESPONSE_GENERATOR_SYSTEM},
@@ -205,12 +203,12 @@ async def chat(req: ChatRequest, user_id: str = Depends(get_current_user)):
             ]
             result["final_response"] = await choose_client(True).chat(llm_messages, temperature=0.5, max_tokens=3072)
         except Exception:
-            logger.error("Pro模型报告生成失败，使用降级回复", exc_info=True)
+            logger.exception("Pro模型报告生成失败，使用降级回复")
             try:
                 from ..agents.response_generator import _fallback_response
                 result["final_response"] = _fallback_response(result)
             except Exception:
-                logger.error("报告生成完全失败", exc_info=True)
+                logger.exception("报告生成完全失败")
                 result["final_response"] = "报告生成失败，请重试。"
 
     conversation_id = result.get("conversation_id", "")
@@ -347,7 +345,7 @@ async def chat_stream(req: ChatRequest, user_id: str = Depends(get_current_user)
         try:
             # Step 1: Run graph — collect agent_logs from each node
             async for chunk in trading_graph.astream(state, stream_mode="updates"):
-                for node_name, node_update in chunk.items():
+                for node_update in chunk.values():
                     # Merge node update: agent_logs uses last-writer-wins (no reducer),
                     # messages uses operator.add (extend)
                     for key, value in node_update.items():
@@ -443,7 +441,6 @@ async def chat_stream(req: ChatRequest, user_id: str = Depends(get_current_user)
         final_state = accumulated_state
         
         # Step 2: Generate report NON-streaming (full text for download/new-window)
-        intent = final_state.get("intent", "chat")
         needs_report = final_state.get("needs_report", False)
         
         response_text = ""
@@ -464,9 +461,9 @@ async def chat_stream(req: ChatRequest, user_id: str = Depends(get_current_user)
         else:
             # Full report for analyze/trade/portfolio/query → 使用 Pro 模型深度推理
             try:
+                from ..agents.prompts import RESPONSE_GENERATOR_SYSTEM
                 from ..agents.response_generator import _build_context
                 from ..services.llm import choose_client
-                from ..agents.prompts import RESPONSE_GENERATOR_SYSTEM
                 
                 context = _build_context(final_state)
                 llm_messages = [
@@ -475,12 +472,12 @@ async def chat_stream(req: ChatRequest, user_id: str = Depends(get_current_user)
                 ]
                 response_text = await choose_client(True).chat(llm_messages, temperature=0.5, max_tokens=3072)
             except Exception:
-                logger.error("Pro模型流式报告生成失败，尝试降级回复", exc_info=True)
+                logger.exception("Pro模型流式报告生成失败，尝试降级回复")
                 try:
                     from ..agents.response_generator import _fallback_response
                     response_text = _fallback_response(final_state)
                 except Exception:
-                    logger.error("报告生成完全失败", exc_info=True)
+                    logger.exception("报告生成完全失败")
                     response_text = "报告生成失败，请重试。"
         
         # 直接执行：用户明确说"直接买入/卖出"，跳过确认卡片，立即提交订单
@@ -800,15 +797,15 @@ async def generate_report(req: ReportRequest, user_id: str = Depends(get_current
     )
 
     try:
-        from ..services.llm import choose_client
         from ..agents.prompts import RESPONSE_GENERATOR_SYSTEM
+        from ..services.llm import choose_client
         llm_messages = [
             {"role": "system", "content": RESPONSE_GENERATOR_SYSTEM},
             {"role": "user", "content": context},
         ]
         report = await choose_client(True).chat(llm_messages, temperature=0.5, max_tokens=3072)
     except Exception:
-        logger.error("报告生成失败", exc_info=True)
+        logger.exception("报告生成失败")
         raise HTTPException(500, "报告生成失败，请稍后重试")
 
     try:

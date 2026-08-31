@@ -3,14 +3,14 @@
 为每个 HTTP 请求生成唯一 trace_id，通过 ContextVar 在线程/协程间传递，
 确保同一请求的所有日志自动关联到同一 trace_id。
 """
-import time
 import logging
+import time
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
-from ..services.logging_config import set_trace_id, generate_trace_id
+from ..services.logging_config import generate_trace_id, set_trace_id
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +53,7 @@ class TraceMiddleware(BaseHTTPMiddleware):
         log_level = logging.WARNING if status_code >= 400 else logging.INFO
         logger.log(
             log_level,
-            f"<<< request_end",
+            "<<< request_end",
             extra={
                 "extra_fields": {
                     "method": request.method,

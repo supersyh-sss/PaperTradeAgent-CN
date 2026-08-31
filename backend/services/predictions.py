@@ -1,8 +1,7 @@
 """算法预测服务 - 技术指标+量价关系的短期价格预测"""
-from typing import List, Optional
 
 
-def predict_short_term(kline_data: List[dict], lookback: int = 20) -> dict:
+def predict_short_term(kline_data: list[dict], lookback: int = 20) -> dict:
     """
     基于1分钟/5分钟K线的短期价格走势预测。
     返回：趋势方向、置信度、目标价位、止损建议。
@@ -81,7 +80,7 @@ def predict_short_term(kline_data: List[dict], lookback: int = 20) -> dict:
     }
 
 
-def technical_divergence(close_prices: List[float], rsi_values: List[float]) -> Optional[dict]:
+def technical_divergence(close_prices: list[float], rsi_values: list[float]) -> dict | None:
     """
     RSI背离检测：价格上涨但RSI下降 = 看跌背离，价格下跌但RSI上升 = 看涨背离。
     """
@@ -108,7 +107,7 @@ def technical_divergence(close_prices: List[float], rsi_values: List[float]) -> 
     return None
 
 
-def volume_price_analysis(close_prices: List[float], volumes: List[float]) -> dict:
+def volume_price_analysis(close_prices: list[float], volumes: list[float]) -> dict:
     """
     量价关系分析：放量上涨=健康，缩量上涨=警惕，放量下跌=恐慌，缩量下跌=惜售。
     """
@@ -143,14 +142,14 @@ def volume_price_analysis(close_prices: List[float], volumes: List[float]) -> di
 
 # ── 内部计算函数 ──
 
-def _calc_momentum(prices: List[float], period: int = 5) -> float:
+def _calc_momentum(prices: list[float], period: int = 5) -> float:
     """计算动量：最近period根K线的涨跌幅"""
     if len(prices) < period:
         return 0
     return round((prices[-1] / prices[-period] - 1) * 100, 2)
 
 
-def _volume_anomaly(volumes: List[float]) -> Optional[dict]:
+def _volume_anomaly(volumes: list[float]) -> dict | None:
     """成交量异动检测"""
     if len(volumes) < 10:
         return None
@@ -168,7 +167,7 @@ def _volume_anomaly(volumes: List[float]) -> Optional[dict]:
     return None
 
 
-def _calc_atr(highs: List[float], lows: List[float], closes: List[float], period: int = 10) -> float:
+def _calc_atr(highs: list[float], lows: list[float], closes: list[float], period: int = 10) -> float:
     """计算平均真实波幅（ATR）"""
     if len(highs) < period + 1:
         return 0
@@ -183,7 +182,7 @@ def _calc_atr(highs: List[float], lows: List[float], closes: List[float], period
     return round(sum(tr_values[-period:]) / period, 4)
 
 
-def _breakout_probability(closes: List[float], support: float, resistance: float) -> dict:
+def _breakout_probability(closes: list[float], support: float, resistance: float) -> dict:
     """突破概率计算"""
     current = closes[-1]
     range_width = resistance - support
@@ -206,4 +205,4 @@ def _breakout_probability(closes: List[float], support: float, resistance: float
                 "desc": f"接近支撑位{support}（距{dist_to_support:.1f}%），跌破概率较高"}
 
     return {"type": "breakout", "direction": "neutral", "probability": round(max(0, 50 - position * 60), 1),
-            "desc": f"价格处于区间中部，短期突破概率较低"}
+            "desc": "价格处于区间中部，短期突破概率较低"}

@@ -1,10 +1,11 @@
 """股票数据 API - K线图、实时行情、股票搜索"""
 from fastapi import APIRouter, Depends, HTTPException, Query
-from ..services.tencent_api import tencent_api
-from ..services.technical_analysis import technical_analyzer
-from ..services.symbol import pure_code
-from ..services.kline_cache import get_cached_kline, save_kline_to_cache
+
 from ..middleware.error_handler import get_current_user
+from ..services.kline_cache import get_cached_kline, save_kline_to_cache
+from ..services.symbol import pure_code
+from ..services.technical_analysis import technical_analyzer
+from ..services.tencent_api import tencent_api
 
 router = APIRouter(prefix="/api/stocks", tags=["stocks"])
 
@@ -15,7 +16,7 @@ async def search_stocks(
     limit: int = Query(default=8, ge=1, le=20),
 ):
     """根据关键词搜索A股股票（基于本地全量股票列表，无需API请求）"""
-    from ..services.stock_lookup import search, get_count, get_date
+    from ..services.stock_lookup import get_count, get_date, search
     results = search(q, limit)
     return {
         "query": q,
@@ -112,7 +113,7 @@ async def get_realtime(symbol: str, user_id: str = Depends(get_current_user)):
     """获取股票实时行情（优先使用后台轮询缓存，缓存未命中才请求腾讯）"""
     symbol = pure_code(symbol)
 
-    from ..services.live_prices import get_cached_price, add_hot_symbol
+    from ..services.live_prices import add_hot_symbol, get_cached_price
     add_hot_symbol(symbol)
     cached = get_cached_price(symbol)
     if cached and cached.get("last_price"):

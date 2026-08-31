@@ -1,6 +1,6 @@
 """响应生成器 - 基于 DeepSeek LLM 的专业中文回复"""
-from .state import AgentState
 from ..services.technical_analysis import technical_analyzer
+from .state import AgentState
 
 
 async def response_generator_node(state: AgentState) -> AgentState:
@@ -53,7 +53,6 @@ def _build_context(state: AgentState) -> str:
 
     symbol = state.get("active_symbol")
     name = state.get("active_name")
-    in_watchlist = state.get("in_watchlist", False)
     watchlist = state.get("watchlist", [])
 
     if name and symbol:
@@ -64,13 +63,13 @@ def _build_context(state: AgentState) -> str:
 
     # 实时行情
     market_data = state.get("market_data", {})
-    for k, v in market_data.items():
+    for v in market_data.values():
         parts.append(f"\n实时行情 {v.get('name', '')}: 价格{v.get('price')}, 涨跌{v.get('change_pct')}%, 昨收{v.get('prev_close')}, 今开{v.get('open')}, 最高{v.get('high')}, 最低{v.get('low')}, 成交量{v.get('volume')}手, 换手率{v.get('turnover')}%")
 
     # 技术分析
     tech = state.get("technical_analysis")
     if tech:
-        parts.append(f"\n技术分析数据:")
+        parts.append("\n技术分析数据:")
         parts.append(f"- 趋势: {tech.get('trend')}")
         parts.append(f"- 最新价: {tech.get('latest_price')}")
         parts.append(f"- 均线: MA5={tech['ma'].get('ma5')}, MA10={tech['ma'].get('ma10')}, MA20={tech['ma'].get('ma20')}, MA60={tech['ma'].get('ma60')}")
@@ -88,7 +87,7 @@ def _build_context(state: AgentState) -> str:
     # 量化分析结果
     quant_assessment = state.get("quant_assessment")
     if quant_assessment:
-        parts.append(f"\n量化评估:")
+        parts.append("\n量化评估:")
         parts.append(f"- 综合判断: {quant_assessment.get('summary', '')}")
         parts.append(f"- 趋势评估: {quant_assessment.get('trend_assessment', '')}")
         parts.append(f"- 强度评分: {quant_assessment.get('strength_rating', '')}/10")
@@ -103,7 +102,7 @@ def _build_context(state: AgentState) -> str:
     # 市场情报分析
     intel_assessment = state.get("intelligence_assessment")
     if intel_assessment:
-        parts.append(f"\n市场评估:")
+        parts.append("\n市场评估:")
         parts.append(f"- 情绪: {intel_assessment.get('sentiment_label', '')} ({intel_assessment.get('sentiment_score', 0)})")
         parts.append(f"- 影响: {intel_assessment.get('impact_direction', '')}/{intel_assessment.get('impact_strength', '')}")
         parts.append(f"- 影响摘要: {intel_assessment.get('impact_summary', '')}")
@@ -131,7 +130,7 @@ def _build_context(state: AgentState) -> str:
                 for sym, d in indices.items():
                     parts.append(f"  * {d.get('name', sym)}: {d.get('price')} ({d.get('change_pct', 0):+.2f}%)")
         else:
-            parts.append(f"\n市场动态情报:")
+            parts.append("\n市场动态情报:")
             parts.append(f"- 情绪评分: {intel.get('sentiment_label')} ({intel.get('sentiment_score')})")
             impact = intel.get("impact", {})
             parts.append(f"- 影响评估: {impact.get('direction')}({impact.get('strength')}) - {impact.get('reason')}")
@@ -149,7 +148,7 @@ def _build_context(state: AgentState) -> str:
     # 持仓
     portfolio = state.get("portfolio_summary")
     if portfolio:
-        parts.append(f"\n持仓概览:")
+        parts.append("\n持仓概览:")
         parts.append(f"- 可用资金: {portfolio.get('balance', 0):,.2f}")
         parts.append(f"- 持仓市值: {portfolio.get('total_market_value', 0):,.2f}")
         parts.append(f"- 总资产: {portfolio.get('total_assets', 0):,.2f}")
@@ -164,7 +163,7 @@ def _build_context(state: AgentState) -> str:
     # 持仓评估
     portfolio_assessment = state.get("portfolio_assessment")
     if portfolio_assessment:
-        parts.append(f"\n持仓评估:")
+        parts.append("\n持仓评估:")
         parts.append(f"- 健康度: {portfolio_assessment.get('portfolio_health', '')}")
         parts.append(f"- 集中度风险: {portfolio_assessment.get('concentration_risk', '')}")
         parts.append(f"- 回撤状态: {portfolio_assessment.get('drawdown_status', '')}")
@@ -175,7 +174,7 @@ def _build_context(state: AgentState) -> str:
     # 交易计划
     trade_plan = state.get("trade_plan")
     if trade_plan:
-        parts.append(f"\n交易计划:")
+        parts.append("\n交易计划:")
         parts.append(f"- 方向: {trade_plan.get('side')}")
         parts.append(f"- 数量: {trade_plan.get('quantity')}股")
         parts.append(f"- 当前价: {trade_plan.get('current_price')}")
@@ -195,7 +194,7 @@ def _build_context(state: AgentState) -> str:
     # 交易执行评估
     executor_assessment = state.get("executor_assessment")
     if executor_assessment:
-        parts.append(f"\n交易评估:")
+        parts.append("\n交易评估:")
         parts.append(f"- 建议: {executor_assessment.get('trade_recommendation', '')}")
         parts.append(f"- 风险: {executor_assessment.get('risk_level', '')}")
         parts.append(f"- 风险评估: {executor_assessment.get('risk_assessment_chinese', '')}")
@@ -328,4 +327,4 @@ def _fallback_response_body(state: AgentState) -> str:
             )
         return "暂无持仓数据。"
 
-    return f"收到你的消息。我是一个A股模拟投资系统，可以帮你分析股票、模拟交易、查看持仓。请告诉我你想了解什么？"
+    return "收到你的消息。我是一个A股模拟投资系统，可以帮你分析股票、模拟交易、查看持仓。请告诉我你想了解什么？"

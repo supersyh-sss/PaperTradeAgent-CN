@@ -1,7 +1,8 @@
 """认证中间件 + 全局异常处理"""
+import logging
+
 from fastapi import Header, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
-import logging
 
 from ..config import TEST_TOKEN, TEST_USER_ID
 
@@ -51,7 +52,7 @@ async def global_exception_handler(request: Request, exc: Exception):
         status_code = 500
         message = "系统内部错误，请稍后重试"
 
-    logger.error(f"[{exc_type}] {exc}", exc_info=True)
+    logger.error("[%s] %s", exc_type, exc)
 
     return JSONResponse(
         status_code=status_code,

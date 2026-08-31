@@ -10,9 +10,9 @@
 """
 
 import logging
-from enum import IntEnum
-from typing import Dict, Any, Optional, List, Tuple
 from dataclasses import dataclass, field
+from enum import IntEnum
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ class ContextBudget:
     total_tokens: int = 4000          # 总预算
     reserved: int = 500               # 为输出预留
     
-    allocations: Dict[ContextPriority, int] = field(default_factory=lambda: {
+    allocations: dict[ContextPriority, int] = field(default_factory=lambda: {
         ContextPriority.SYSTEM_CRITICAL: 800,
         ContextPriority.USER_INTENT: 200,
         ContextPriority.CURRENT_TASK: 600,
@@ -63,20 +63,20 @@ class ContextBudget:
 class ContextPipeline:
     """上下文转化流水线 — 多阶段处理"""
     budget: ContextBudget = field(default_factory=ContextBudget)
-    _stages: List[Tuple[int, str]] = field(default_factory=list)  # (priority, content)
+    _stages: list[tuple[int, str]] = field(default_factory=list)  # (priority, content)
 
     def add(self, priority: ContextPriority, content: str):
         """添加一条上下文信息"""
         self._stages.append((int(priority), content))
 
-    def add_section(self, priority: ContextPriority, header: str, items: List[str]):
+    def add_section(self, priority: ContextPriority, header: str, items: list[str]):
         """添加一个结构化段落"""
         if not items:
             return
         combined = header + "\n" + "\n".join(f"  {i}" for i in items)
         self.add(priority, combined)
 
-    def build(self, max_tokens: Optional[int] = None) -> str:
+    def build(self, max_tokens: int | None = None) -> str:
         """按优先级组装上下文，超预算自动截断"""
         # 按优先级降序排列
         sorted_stages = sorted(self._stages, key=lambda x: -x[0])
@@ -123,7 +123,7 @@ class ContextManager:
       4. 模板组装
     """
 
-    def __init__(self, budget: Optional[ContextBudget] = None):
+    def __init__(self, budget: ContextBudget | None = None):
         self.budget = budget or ContextBudget()
         self.pipeline = ContextPipeline(budget=self.budget)
 
@@ -138,7 +138,7 @@ class ContextManager:
             parts.append(f"当前时间: {current_time}")
         self.pipeline.add(ContextPriority.USER_INTENT, "\n".join(parts))
 
-    def inject_history(self, history_summary: Optional[str], recent_messages: Optional[List[Dict]] = None):
+    def inject_history(self, history_summary: str | None, recent_messages: list[dict] | None = None):
         """注入对话历史 — 摘要 + 最近消息"""
         if history_summary:
             self.pipeline.add(ContextPriority.RECENT_HISTORY, f"对话历史摘要: {history_summary}")
@@ -152,13 +152,13 @@ class ContextManager:
             if lines:
                 self.pipeline.add(ContextPriority.RECENT_HISTORY, "近期对话:\n" + "\n".join(lines))
 
-    def inject_agent_output(self, agent_name: str, output: Dict[str, Any], label: str = ""):
+    def inject_agent_output(self, agent_name: str, output: dict[str, Any], label: str = ""):
         """注入上游 Agent 分析结果"""
         import json as json_mod
         content = f"{label or agent_name}分析结果:\n{json_mod.dumps(output, ensure_ascii=False, indent=2)}"
         self.pipeline.add(ContextPriority.AGENT_OUTPUT, content)
 
-    def inject_market_data(self, data: Dict[str, Any]):
+    def inject_market_data(self, data: dict[str, Any]):
         """注入行情数据"""
         import json as json_mod
         content = f"行情数据:\n{json_mod.dumps(data, ensure_ascii=False, indent=2)}"
@@ -168,7 +168,7 @@ class ContextManager:
         """注入当前任务上下文"""
         self.pipeline.add(ContextPriority.CURRENT_TASK, task_info)
 
-    def build_context(self, max_tokens: Optional[int] = None) -> str:
+    def build_context(self, max_tokens: int | None = None) -> str:
         """组装最终上下文字符串"""
         return self.pipeline.build(max_tokens)
 

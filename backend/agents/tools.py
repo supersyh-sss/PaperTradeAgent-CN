@@ -10,13 +10,19 @@
 from langchain_core.tools import tool
 
 from ..services.data_source_manager import data_source_manager
-from ..services.technical_analysis import technical_analyzer
-from ..services.news_service import get_stock_news, search_news
-from ..services.web_search import search_web
-from ..services.market_tool import get_index_overview
-from ..services.db import get_all_positions, get_account, get_watchlist, get_active_orders_db, get_all_orders_db
-from ..services.symbol import pure_code
+from ..services.db import (
+    get_account,
+    get_active_orders_db,
+    get_all_orders_db,
+    get_all_positions,
+    get_watchlist,
+)
 from ..services.indices import TRACKED_INDICES
+from ..services.market_tool import get_index_overview
+from ..services.news_service import get_stock_news, search_news
+from ..services.symbol import pure_code
+from ..services.technical_analysis import technical_analyzer
+from ..services.web_search import search_web
 
 
 @tool
@@ -33,7 +39,7 @@ async def get_realtime_quote(symbol: str) -> dict:
     quotes = await data_source_manager.get_realtime([code])
     if not quotes:
         return {"error": f"无法获取 {symbol} 的实时行情"}
-    result = list(quotes.values())[0]
+    result = next(iter(quotes.values()))
     return {
         "symbol": code,
         "name": result.get("name", ""),

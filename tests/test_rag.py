@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from backend.services.rag_service import ngram_similarity, cosine_similarity, search
+from backend.services.rag_service import cosine_similarity, ngram_similarity, search
 
 
 # ---- n-gram 兜底相似度（确定性） ----

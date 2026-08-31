@@ -160,26 +160,6 @@ CREATE INDEX IF NOT EXISTS idx_conv_messages_conv ON conversation_messages(conve
 CREATE INDEX IF NOT EXISTS idx_conv_messages_created ON conversation_messages(conversation_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_conversations_user ON conversations(user_id, updated_at DESC);
 
--- 挂单表（非交易时段）
-CREATE TABLE IF NOT EXISTS pending_orders (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id TEXT NOT NULL DEFAULT 'default',
-    symbol TEXT NOT NULL,
-    name TEXT NOT NULL,
-    side TEXT NOT NULL CHECK(side IN ('BUY', 'SELL')),
-    quantity INTEGER NOT NULL CHECK(quantity >= 100 AND quantity % 100 = 0),
-    price REAL NOT NULL,
-    order_type TEXT NOT NULL DEFAULT 'LIMIT',
-    status TEXT NOT NULL DEFAULT 'PENDING' CHECK(status IN ('PENDING', 'CONFIRMED', 'CANCELLED', 'EXECUTED')),
-    trade_id INTEGER,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    confirmed_at TIMESTAMP,
-    executed_at TIMESTAMP,
-    FOREIGN KEY (trade_id) REFERENCES trades(id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_pending_orders_user ON pending_orders(user_id, status);
-
 -- 消息反馈表（用户对 Agent 输出的点赞/倒赞）
 CREATE TABLE IF NOT EXISTS message_feedback (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

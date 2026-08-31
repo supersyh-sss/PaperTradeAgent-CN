@@ -1,8 +1,7 @@
 """K线数据文件缓存 - 避免重复请求API"""
 import json
-from datetime import datetime, date, time, timezone, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
-from typing import Optional, List
 
 BJT = timezone(timedelta(hours=8))
 CACHE_DIR = Path(__file__).parent.parent.parent / "data" / "kline_cache"
@@ -66,7 +65,7 @@ def _last_trading_day(d: date) -> date:
         return result
 
 
-def get_cached_kline(symbol: str, period: str = "day", days: int = 360) -> Optional[List[dict]]:
+def get_cached_kline(symbol: str, period: str = "day", days: int = 360) -> list[dict] | None:
     """获取缓存的K线数据"""
     _ensure_cache_dir()
     cache_file = _cache_path(symbol, period)
@@ -88,18 +87,18 @@ def get_cached_kline(symbol: str, period: str = "day", days: int = 360) -> Optio
         if isinstance(data, list):
             return data[-days:]
         return data
-    except (json.JSONDecodeError, IOError):
+    except (OSError, json.JSONDecodeError):
         return None
 
 
-def save_kline_to_cache(symbol: str, period: str, data: List[dict]):
+def save_kline_to_cache(symbol: str, period: str, data: list[dict]):
     """保存K线数据到文件缓存"""
     _ensure_cache_dir()
     cache_file = _cache_path(symbol, period)
     try:
         with open(cache_file, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, default=str)
-    except IOError:
+    except OSError:
         pass
 
 

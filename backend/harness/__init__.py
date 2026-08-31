@@ -10,36 +10,58 @@ Harness 是包裹在 LLM 之外的工程化容器，完整管控 Agent「感知-
   - State Separation: LLM 作为无状态计算单元，所有跨轮次状态存储于外部持久化引擎
 """
 
-from .repl_loop import HarnessREPL, ExecutionPhase, CycleResult
-from .context_manager import ContextManager, ContextBudget, ContextPriority, ContextPipeline
-from .call_interceptor import CallInterceptor, InterceptResult, FallbackChain
+from .call_interceptor import CallInterceptor, FallbackChain, InterceptResult
+from .context_manager import (
+    ContextBudget,
+    ContextManager,
+    ContextPipeline,
+    ContextPriority,
+)
+from .contracts import AgentContract, ContractRegistry
 from .feedback_assembler import FeedbackAssembler, FeedbackPackage
-from .safety_gate import SafetyGate, PermissionCheck, AuditLogger
-from .metrics import MetricsCollector, MetricType, HarnessMetrics
-from .resilience import ResilienceManager, CircuitBreaker, RetryPolicy
-from .contracts import ContractRegistry, AgentContract
-from .state_manager import StateManager, StateCheckpoint
-from .sandbox import SandboxManager, IsolationLevel
+from .metrics import HarnessMetrics, MetricsCollector, MetricType
+from .repl_loop import CycleResult, ExecutionPhase, HarnessREPL
+from .resilience import CircuitBreaker, ResilienceManager, RetryPolicy
+from .safety_gate import AuditLogger, PermissionCheck, SafetyGate
+from .sandbox import IsolationLevel, SandboxManager
+from .state_manager import StateCheckpoint, StateManager
 
 __all__ = [
-    # REPL Loop
-    "HarnessREPL", "ExecutionPhase", "CycleResult",
-    # Context Management
-    "ContextManager", "ContextBudget", "ContextPriority", "ContextPipeline",
-    # Call Interception
-    "CallInterceptor", "InterceptResult", "FallbackChain",
-    # Feedback Assembly
-    "FeedbackAssembler", "FeedbackPackage",
-    # Safety & Security
-    "SafetyGate", "PermissionCheck", "AuditLogger",
-    # Metrics & Observability
-    "MetricsCollector", "MetricType", "HarnessMetrics",
-    # Resilience
-    "ResilienceManager", "CircuitBreaker", "RetryPolicy",
     # Contracts
-    "ContractRegistry", "AgentContract",
-    # State Management
-    "StateManager", "StateCheckpoint",
+    "AgentContract",
+    # Safety & Security
+    "AuditLogger",
+    # Call Interception
+    "CallInterceptor",
+    # Resilience
+    "CircuitBreaker",
+    # Context Management
+    "ContextBudget",
+    "ContextManager",
+    "ContextPipeline",
+    "ContextPriority",
+    "ContractRegistry",
+    # REPL Loop
+    "CycleResult",
+    "ExecutionPhase",
+    "FallbackChain",
+    # Feedback Assembly
+    "FeedbackAssembler",
+    "FeedbackPackage",
+    # Metrics & Observability
+    "HarnessMetrics",
+    "HarnessREPL",
+    "InterceptResult",
     # Sandbox
-    "SandboxManager", "IsolationLevel",
+    "IsolationLevel",
+    "MetricType",
+    "MetricsCollector",
+    "PermissionCheck",
+    "ResilienceManager",
+    "RetryPolicy",
+    "SafetyGate",
+    "SandboxManager",
+    # State Management
+    "StateCheckpoint",
+    "StateManager",
 ]

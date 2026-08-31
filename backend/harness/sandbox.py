@@ -11,10 +11,11 @@
   - 权限最小化：Agent 工具调用前必须通过 SafetyGate
 """
 
-from enum import IntEnum
-from dataclasses import dataclass, field
-from typing import Optional, Callable, Any, Dict
 import logging
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from enum import IntEnum
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +46,7 @@ class SandboxManager:
     """沙箱管理器 — 按操作风险等级匹配隔离策略"""
     
     current_level: IsolationLevel = IsolationLevel.PROCESS
-    _operation_handlers: Dict[str, Callable] = field(default_factory=dict)
+    _operation_handlers: dict[str, Callable] = field(default_factory=dict)
 
     def register_handler(self, operation: str, handler: Callable):
         """注册操作处理器"""
@@ -61,7 +62,7 @@ class SandboxManager:
         required = self.get_required_level(operation)
         return self.current_level >= required
 
-    def get_sandbox_info(self) -> Dict[str, Any]:
+    def get_sandbox_info(self) -> dict[str, Any]:
         """获取沙箱状态信息"""
         return {
             "isolation_level": self.current_level.name,

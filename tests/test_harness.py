@@ -1,15 +1,13 @@
 """Harness Engineering Framework — 功能测试"""
-import asyncio
-import json
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "backend"))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 def test_context_manager():
     """Test 1: ContextManager with priority-based token budget"""
-    from backend.harness.context_manager import ContextManager, ContextPriority
+    from backend.harness.context_manager import ContextManager
     cm = ContextManager()
     cm.inject_system_critical("SYSTEM: You are a helpful assistant.")
     cm.inject_user_intent("分析茅台走势", "2026-08-12 14:30")
@@ -27,21 +25,21 @@ def test_fallback_chain():
     
     # Level 1: JSON in markdown fence
     broken = '```json\n{"intent": "analyze", "symbol": "sh600519"}\n```'
-    result, method, errors = FallbackChain.parse(broken)
+    result, method, _errors = FallbackChain.parse(broken)
     assert result.get("intent") == "analyze", f"Expected analyze, got {result}"
     assert method == "json_parse", f"Expected json_parse, got {method}"
     print(f"[PASS] FallbackChain: markdown fence [{method}]")
     
     # Level 2: Regex extraction from mixed text
     raw_text = 'The intent is analyze for stock sh600519. Output: {"intent": "analyze", "stock_symbol": "sh600519", "needs_report": true}'
-    result, method, errors = FallbackChain.parse(raw_text)
+    result, method, _errors = FallbackChain.parse(raw_text)
     assert result.get("intent") == "analyze", f"Expected analyze, got {result}"
     assert method in ("regex_extract", "line_parse", "json_parse"), f"Unexpected method: {method}"
     print(f"[PASS] FallbackChain: mixed text extraction [{method}]")
     
     # Level 3: Line parse fallback
     line_text = "intent: analyze\nstock_symbol: sh600519\nneeds_report: true"
-    result, method, errors = FallbackChain.parse(line_text)
+    result, method, _errors = FallbackChain.parse(line_text)
     assert result.get("intent") == "analyze", f"Expected analyze, got {result}"
     print(f"[PASS] FallbackChain: line parse [{method}]")
 
@@ -65,7 +63,7 @@ def test_safety_gate():
     clean, issues = sg.sanitize_input("分析茅台走势怎么样")
     assert "FILTERED" not in clean, "Clean input should not be filtered"
     assert len(issues) == 0, "No issues expected"
-    print(f"[PASS] SafetyGate: clean input passes")
+    print("[PASS] SafetyGate: clean input passes")
 
 def test_metrics_collector():
     """Test 4: MetricsCollector — session tracking"""
@@ -96,7 +94,7 @@ def test_circuit_breaker():
         cb.record_failure()
     assert cb.state.value == "open", f"Expected open after 5 failures, got {cb.state}"
     assert not cb.allow_request(), "Should reject in OPEN state"
-    print(f"[PASS] CircuitBreaker: OPEN after 5 failures, requests rejected")
+    print("[PASS] CircuitBreaker: OPEN after 5 failures, requests rejected")
 
 def test_contract_registry():
     """Test 6: ContractRegistry — schema validation"""
@@ -105,13 +103,13 @@ def test_contract_registry():
     
     # Valid output
     valid = {"intent": "analyze", "needed_agents": [], "needs_report": True}
-    validated, issues = cr.validate("chief_strategist", valid)
+    _validated, issues = cr.validate("chief_strategist", valid)
     assert len(issues) == 0, f"Unexpected issues: {issues}"
-    print(f"[PASS] ContractRegistry: valid output accepted")
+    print("[PASS] ContractRegistry: valid output accepted")
     
     # Invalid: missing required field
     invalid = {"intent": "unknown"}
-    validated, issues = cr.validate("chief_strategist", invalid)
+    _validated, issues = cr.validate("chief_strategist", invalid)
     assert len(issues) > 0, "Should detect missing required fields"
     print(f"[PASS] ContractRegistry: invalid output rejected ({len(issues)} issues)")
 
@@ -135,12 +133,12 @@ def test_state_manager():
 
 def test_sandbox_manager():
     """Test 8: SandboxManager — isolation levels"""
-    from backend.harness.sandbox import SandboxManager, IsolationLevel
+    from backend.harness.sandbox import IsolationLevel, SandboxManager
     sm = SandboxManager(current_level=IsolationLevel.PROCESS)
     assert sm.can_execute("execute_trade")
     assert sm.can_execute("network_access")
     assert not sm.can_execute("modify_account"), "Need CONTAINER for account modify"
-    print(f"[PASS] SandboxManager: isolation gating works")
+    print("[PASS] SandboxManager: isolation gating works")
 
 def test_feedback_assembler():
     """Test 9: FeedbackAssembler — structured feedback"""
@@ -149,13 +147,13 @@ def test_feedback_assembler():
     fb = FeedbackAssembler.success("quant_researcher", "execution", "Analysis complete", 
                                      {"trend": "bullish"}, {"tokens": 500})
     assert "bullish" in fb.to_injectable()
-    print(f"[PASS] FeedbackAssembler: success feedback generated")
+    print("[PASS] FeedbackAssembler: success feedback generated")
     
     fb = FeedbackAssembler.error("trade_executor", "execution", 
                                   errors=["Price out of range"], 
                                   suggestions=["Retry with adjusted price"])
     assert "Price out of range" in fb.to_injectable()
-    print(f"[PASS] FeedbackAssembler: error feedback generated")
+    print("[PASS] FeedbackAssembler: error feedback generated")
 
 if __name__ == "__main__":
     tests = [

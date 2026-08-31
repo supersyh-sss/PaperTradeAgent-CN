@@ -2,15 +2,20 @@
 import json as json_mod
 import logging
 from datetime import datetime
-from .state import AgentState
+
+from ..services.agent_memory import (
+    compute_query_hash,
+    get_agent_memory,
+    save_agent_memory,
+)
 from ..services.data_source_manager import data_source_manager
-from ..services.technical_analysis import technical_analyzer
-from ..services.quant_signals import compute_extended_indicators, compute_quant_score
-from ..services.market_tool import get_stock_realtime
 from ..services.llm import choose_client
+from ..services.market_tool import get_stock_realtime
+from ..services.quant_signals import compute_extended_indicators, compute_quant_score
+from ..services.technical_analysis import technical_analyzer
 from ..services.trading_time import TradingTimeChecker
-from ..services.agent_memory import get_agent_memory, save_agent_memory, compute_query_hash
-from .prompts import QUANT_RESEARCHER_SYSTEM, AGENT_PROFILES
+from .prompts import AGENT_PROFILES, QUANT_RESEARCHER_SYSTEM
+from .state import AgentState
 from .utils import maybe_attach_followup
 
 logger = logging.getLogger(__name__)
@@ -302,7 +307,7 @@ def _build_tech_summary(analysis: dict, label: str) -> str:
 
 async def _quant_llm_with_tools(state: AgentState, symbol: str, name: str) -> dict:
     """A4：多轮工具编排，LLM 自主决定查询行情/K线。失败返回 parse_error 标记。"""
-    from .tool_agent import run_tool_agent, parse_agent_json
+    from .tool_agent import parse_agent_json, run_tool_agent
     from .tools import TOOLS_BY_AGENT
 
     user_input = state.get("user_input", "")

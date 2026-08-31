@@ -10,15 +10,16 @@ Function Calling 全生命周期管控：
 """
 
 import json as json_mod
-import re
 import logging
+import re
 import time
-from typing import Dict, Any, Optional, Callable, Awaitable, List, Tuple
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
+from typing import Any
 
-from .contracts import ContractRegistry, AgentContract
-from .resilience import ResilienceManager, RetryPolicy
+from .contracts import AgentContract, ContractRegistry
 from .metrics import MetricsCollector, MetricType
+from .resilience import ResilienceManager, RetryPolicy
 
 logger = logging.getLogger(__name__)
 
@@ -27,9 +28,9 @@ logger = logging.getLogger(__name__)
 class InterceptResult:
     """拦截结果"""
     success: bool
-    data: Dict[str, Any] = field(default_factory=dict)
+    data: dict[str, Any] = field(default_factory=dict)
     raw_output: str = ""
-    errors: List[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
     retries: int = 0
     fallback_used: bool = False
     latency_ms: float = 0.0
@@ -46,12 +47,11 @@ class FallbackChain:
             text = text[7:]
         elif text.startswith("```"):
             text = text[3:]
-        if text.endswith("```"):
-            text = text[:-3]
+        text = text.removesuffix("```")
         return text.strip()
 
     @staticmethod
-    def try_json_parse(raw: str) -> Tuple[Optional[Dict], str]:
+    def try_json_parse(raw: str) -> tuple[dict | None, str]:
         """尝试标准 JSON 解析"""
         try:
             return json_mod.loads(raw), "json_parse"
@@ -59,7 +59,7 @@ class FallbackChain:
             return None, ""
 
     @staticmethod
-    def try_regex_extract(raw: str) -> Tuple[Optional[Dict], str]:
+    def try_regex_extract(raw: str) -> tuple[dict | None, str]:
         """文本正则回退：尝试从文本中提取 JSON 块"""
         # 匹配最外层的 {...} 或 [...] 
         match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', raw, re.DOTALL)
@@ -85,7 +85,7 @@ class FallbackChain:
         return None, ""
 
     @staticmethod
-    def parse(raw: str) -> Tuple[Dict[str, Any], str, List[str]]:
+    def parse(raw: str) -> tuple[dict[str, Any], str, list[str]]:
         """执行完整降级链路"""
         cleaned = FallbackChain.strip_markdown_fences(raw)
         errors = []
@@ -123,8 +123,8 @@ class CallInterceptor:
 
     def __init__(
         self,
-        resilience: Optional[ResilienceManager] = None,
-        contracts: Optional[ContractRegistry] = None,
+        resilience: ResilienceManager | None = None,
+        contracts: ContractRegistry | None = None,
     ):
         self._resilience = resilience or ResilienceManager()
         self._contracts = contracts or ContractRegistry()
@@ -135,8 +135,8 @@ class CallInterceptor:
         llm_fn: Callable[..., Awaitable[str]],
         agent_name: str,
         *llm_args,
-        contract: Optional[AgentContract] = None,
-        retry_policy: Optional[RetryPolicy] = None,
+        contract: AgentContract | None = None,
+        retry_policy: RetryPolicy | None = None,
         **llm_kwargs,
     ) -> InterceptResult:
         """拦截 LLM 调用，确保返回合法 JSON
@@ -225,6 +225,6 @@ class CallInterceptor:
         result.latency_ms = (time.time() - start) * 1000
         return result
 
-    def sanitize_for_display(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def sanitize_for_display(self, data: dict[str, Any]) -> dict[str, Any]:
         """脱敏处理，移除内部标记"""
         return {k: v for k, v in data.items() if not k.startswith("_")}

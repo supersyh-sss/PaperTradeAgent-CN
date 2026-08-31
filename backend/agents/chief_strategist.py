@@ -7,11 +7,15 @@ from datetime import datetime
 from .state import AgentState
 
 logger = logging.getLogger(__name__)
-from ..services.db import get_watchlist, is_in_watchlist, get_all_positions
-from ..services.position_service import compute_sellable
+from ..services.db import get_all_positions, get_watchlist, is_in_watchlist
 from ..services.llm import deepseek
+from ..services.position_service import compute_sellable
 from ..services.symbol import pure_code
-from .prompts import CHIEF_STRATEGIST_SYSTEM, CHIEF_STRATEGIST_USER_TEMPLATE, AGENT_PROFILES
+from .prompts import (
+    AGENT_PROFILES,
+    CHIEF_STRATEGIST_SYSTEM,
+    CHIEF_STRATEGIST_USER_TEMPLATE,
+)
 from .utils import safe_int
 
 # 意图中文映射
@@ -299,7 +303,7 @@ async def chief_strategist_node(state: AgentState) -> AgentState:
                 state["needs_report"] = False
                 state["needed_agents"] = []
                 state["chief_response"] = "你好！我是A股模拟交易助手，可以帮你分析股票、模拟交易、查看持仓。请问有什么可以帮你的？"
-            state["strategy_direction"] = f"LLM调用失败，默认chat回复"
+            state["strategy_direction"] = "LLM调用失败，默认chat回复"
 
     # 4. 校验自选股
     in_watchlist = False
@@ -476,12 +480,11 @@ async def _build_user_prompt(user_input: str, watchlist: list, state: dict, user
                 continue
             cache = get_cached_price(sym)
             cur_price = float(cache.get("last_price", 0)) if cache else 0
-            pnl = ((cur_price - avg) * qty) if cur_price > 0 and avg > 0 else 0
             pnl_pct = ((cur_price - avg) / avg * 100) if avg > 0 and cur_price > 0 else 0
             position_lines.append(
                 f"  {name or sym}({sym}): {qty}股 成本{avg:.3f} "
-                f"现价{'%.3f' % cur_price if cur_price > 0 else 'N/A'} "
-                f"盈亏{'%+.2f' % pnl_pct}% "
+                f"现价{f'{cur_price:.3f}' if cur_price > 0 else 'N/A'} "
+                f"盈亏{f'{pnl_pct:+.2f}'}% "
                 f"(T+1冻结{t1_qty}股)"
             )
     else:
@@ -507,7 +510,11 @@ async def _build_user_prompt(user_input: str, watchlist: list, state: dict, user
 
     # 注入大盘指数和市场情绪数据
     try:
-        from ..services.indices import get_cached_indices, get_market_sentiment, get_cached_indices_time
+        from ..services.indices import (
+            get_cached_indices,
+            get_cached_indices_time,
+            get_market_sentiment,
+        )
         indices = get_cached_indices()
         sentiment = get_market_sentiment()
         if indices:
@@ -637,7 +644,6 @@ def _extract_symbol(text: str, watchlist: list) -> tuple:
         # 避免 2 字符短串误匹配（如"今天"→"今天国际"、"创业"→"西部创业"）
         from ..services.stock_lookup import _get as _get_lookup
         ni = _get_lookup().get("name_index", {})
-        ci = _get_lookup().get("code_index", {})
         found_candidates = []
         seen = set()
         for stock_name, codes in ni.items():
@@ -728,9 +734,8 @@ def _detect_direct_agent(text: str) -> tuple[str, str]:
     
     matched = []
     for pattern, agent_key in _AGENT_NAME_PATTERNS:
-        if re.search(pattern, text, re.IGNORECASE):
-            if agent_key not in matched:
-                matched.append(agent_key)
+        if re.search(pattern, text, re.IGNORECASE) and agent_key not in matched:
+            matched.append(agent_key)
     
     if not matched:
         return "", ""

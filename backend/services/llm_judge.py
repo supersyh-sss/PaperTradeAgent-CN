@@ -9,7 +9,6 @@
   - 本模块做离线质量回归（依赖 API、有 token 成本、结果带随机性，不进入 CI）
 """
 import logging
-from typing import Dict, List, Optional
 
 from .llm import flash_client
 
@@ -38,7 +37,7 @@ def build_intent_messages(user_input: str) -> list:
 
 
 def build_quality_messages(question: str, answer: str,
-                           reference_points: Optional[List[str]] = None) -> list:
+                           reference_points: list[str] | None = None) -> list:
     """构造输出质量评判的 messages（deterministic，便于单测）。"""
     ref_text = "\n".join(f"- {p}" for p in (reference_points or [])) if reference_points else "（未提供）"
     system = (
@@ -60,7 +59,7 @@ def build_quality_messages(question: str, answer: str,
     ]
 
 
-async def judge_intent(user_input: str) -> Dict:
+async def judge_intent(user_input: str) -> dict:
     """用 Flash 模型对用户输入做意图分类，返回 {intent, confidence}（含容错）。"""
     try:
         result = await flash_client.chat_json(
@@ -84,7 +83,7 @@ async def judge_intent(user_input: str) -> Dict:
 
 
 async def judge_answer_quality(question: str, answer: str,
-                               reference_points: Optional[List[str]] = None) -> Dict:
+                               reference_points: list[str] | None = None) -> dict:
     """用 Flash 模型评估回答质量，返回结构化评分。"""
     try:
         result = await flash_client.chat_json(

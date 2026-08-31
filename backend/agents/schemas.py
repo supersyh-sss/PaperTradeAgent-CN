@@ -4,9 +4,9 @@
 每个 Agent 节点调用 LLM 后，用对应 Schema 验证输出结构。
 """
 
-from pydantic import BaseModel, Field, field_validator
-from typing import Optional
 from datetime import datetime
+
+from pydantic import BaseModel, Field
 
 
 class ChiefOutput(BaseModel):
@@ -14,10 +14,10 @@ class ChiefOutput(BaseModel):
         ...,
         pattern=r"^(chat|query|market|analyze|trade|portfolio|watchlist|cancel_order|direct_agent)$"
     )
-    stock_symbol: Optional[str] = None
-    stock_name: Optional[str] = None
-    trade_side: Optional[str] = Field(None, pattern=r"^(BUY|SELL)$")
-    trade_quantity: Optional[int] = Field(None, ge=100)
+    stock_symbol: str | None = None
+    stock_name: str | None = None
+    trade_side: str | None = Field(None, pattern=r"^(BUY|SELL)$")
+    trade_quantity: int | None = Field(None, ge=100)
     confidence: float = Field(ge=0.0, le=1.0)
     needs_report: bool
     needed_agents: list[str] = Field(default_factory=list)

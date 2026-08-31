@@ -11,9 +11,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from backend.services.llm_judge import judge_answer_quality, judge_intent
 from tests.eval_intent import GOLDEN
-from backend.services.llm_judge import judge_intent, judge_answer_quality
-
 
 # 输出质量 golden 样本：(问题, 回答, 参考要点, 期望好/坏)
 QUALITY_SAMPLES = [

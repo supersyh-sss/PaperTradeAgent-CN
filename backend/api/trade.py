@@ -1,20 +1,26 @@
 """交易执行 API + 订单引擎"""
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import Optional
 
-from ..services import db
-from ..services.symbol import pure_code
 from ..middleware.error_handler import get_current_user
-from ..services.trading_time import TradingTimeChecker
+from ..services import db
 from ..services.data_source_manager import data_source_manager
+from ..services.live_prices import subscribe_order_stream
 from ..services.order_engine import (
-    place_order, cancel_order, get_active_orders, get_user_orders,
-    lock_funds, lock_shares, get_locked_balance, get_locked_shares
+    cancel_order,
+    get_active_orders,
+    get_locked_balance,
+    get_locked_shares,
+    get_user_orders,
+    lock_funds,
+    lock_shares,
+    place_order,
 )
 from ..services.position_service import compute_sellable
-from ..services.live_prices import subscribe_order_stream
+from ..services.symbol import pure_code
+from ..services.trading_time import TradingTimeChecker
 
 router = APIRouter(prefix="/api/trade", tags=["trade"])
 
@@ -24,7 +30,7 @@ class TradeRequest(BaseModel):
     name: str
     side: str  # BUY | SELL
     quantity: int
-    price: Optional[float] = None  # None=市价单
+    price: float | None = None  # None=市价单
     order_type: str = "LIMIT"  # LIMIT | MARKET
 
 
@@ -38,7 +44,7 @@ async def create_trade(
     name: str,
     side: str,
     quantity: int,
-    price: Optional[float] = None,
+    price: float | None = None,
     order_type: str = "LIMIT",
 ) -> dict:
     """统一的下单核心逻辑，供 /api/trade 和 chat trade-action 共用。
@@ -237,7 +243,7 @@ async def list_orders(user_id: str = Depends(get_current_user),
         "data": merged,
         "locked_balance": get_locked_balance(user_id),
         "locked_shares": {s: get_locked_shares(user_id, s) for s in
-                         set(o.get("symbol") for o in merged if o.get("symbol"))},
+                         {o.get("symbol") for o in merged if o.get("symbol")}},
     }
 
 

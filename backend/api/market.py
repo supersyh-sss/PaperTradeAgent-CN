@@ -1,11 +1,16 @@
 """市场行情 API - 实时行情SSE + K线数据"""
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
+
 from ..middleware.error_handler import get_current_user
 from ..services.data_source_manager import data_source_manager
-from ..services.kline_cache import get_cached_kline, save_kline_to_cache
-from ..services.live_prices import subscribe_price_stream, get_all_cached_prices, get_cached_price, get_cached_predictions
 from ..services.indices import get_cached_indices, get_market_sentiment
+from ..services.kline_cache import get_cached_kline, save_kline_to_cache
+from ..services.live_prices import (
+    get_all_cached_prices,
+    get_cached_predictions,
+    subscribe_price_stream,
+)
 from ..services.symbol import pure_code
 
 router = APIRouter(prefix="/api/market", tags=["market"])

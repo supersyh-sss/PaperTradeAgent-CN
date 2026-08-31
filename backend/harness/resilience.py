@@ -7,12 +7,13 @@
 """
 
 import asyncio
+import logging
 import random
 import time
-import logging
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from enum import Enum
-from dataclasses import dataclass, field
-from typing import Callable, Awaitable, Optional, Any, TypeVar
+from typing import ClassVar, TypeVar
 
 logger = logging.getLogger(__name__)
 T = TypeVar("T")
@@ -58,11 +59,11 @@ class CircuitBreaker:
     @property
     def state(self) -> CircuitState:
         """获取当前状态（含自动恢复逻辑）"""
-        if self._state == CircuitState.OPEN:
-            if time.time() - self._last_failure_time > self.recovery_timeout_ms / 1000.0:
-                self._state = CircuitState.HALF_OPEN
-                self._half_open_count = 0
-                logger.info(f"CircuitBreaker [{self.name}]: OPEN → HALF_OPEN")
+        if (self._state == CircuitState.OPEN
+                and time.time() - self._last_failure_time > self.recovery_timeout_ms / 1000.0):
+            self._state = CircuitState.HALF_OPEN
+            self._half_open_count = 0
+            logger.info(f"CircuitBreaker [{self.name}]: OPEN → HALF_OPEN")
         return self._state
 
     def allow_request(self) -> bool:
@@ -100,9 +101,9 @@ class CircuitBreaker:
 class ResilienceManager:
     """韧性管理器 — 集成重试 + 熔断"""
     _policy: RetryPolicy
-    _breakers: dict[str, CircuitBreaker] = {}
+    _breakers: ClassVar[dict[str, CircuitBreaker]] = {}
 
-    def __init__(self, policy: Optional[RetryPolicy] = None):
+    def __init__(self, policy: RetryPolicy | None = None):
         self._policy = policy or RetryPolicy()
 
     def get_breaker(self, name: str) -> CircuitBreaker:
@@ -115,8 +116,8 @@ class ResilienceManager:
         self,
         fn: Callable[..., Awaitable[T]],
         *args,
-        breaker_name: Optional[str] = None,
-        policy: Optional[RetryPolicy] = None,
+        breaker_name: str | None = None,
+        policy: RetryPolicy | None = None,
         **kwargs,
     ) -> T:
         """执行可调用对象，自动应用重试 + 熔断逻辑"""

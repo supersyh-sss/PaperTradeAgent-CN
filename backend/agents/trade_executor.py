@@ -1,21 +1,26 @@
 """交易执行员 Agent - 多因子智能定价 + 费用预估 + 交易周期预测"""
-import logging
-from datetime import datetime
-import time as _time
 import json as json_mod
-from .state import AgentState
-from ..services.trading_time import TradingTimeChecker
-from ..services.data_source_manager import data_source_manager
+import logging
+import time as _time
+from datetime import datetime
+
 from ..services import db
-from ..services.llm import choose_client
-from ..services.trade_rules import suggest_lot_size
-from ..services.position_service import apply_trade_fill, compute_sellable
+from ..services.agent_memory import (
+    compute_query_hash,
+    get_agent_memory,
+    save_agent_memory,
+)
+from ..services.data_source_manager import data_source_manager
 from ..services.fee_calculator import calculate_fee, format_fee_estimate
+from ..services.llm import choose_client
+from ..services.position_service import apply_trade_fill, compute_sellable
+from ..services.quant_prediction import predict_medium_long_term, predict_short_term
 from ..services.symbol import exchange_prefix
-from ..services.agent_memory import get_agent_memory, save_agent_memory, compute_query_hash
-from ..services.quant_prediction import predict_short_term, predict_medium_long_term
-from .prompts import TRADE_EXECUTOR_SYSTEM, AGENT_PROFILES
-from .utils import safe_int, maybe_attach_followup
+from ..services.trade_rules import suggest_lot_size
+from ..services.trading_time import TradingTimeChecker
+from .prompts import AGENT_PROFILES, TRADE_EXECUTOR_SYSTEM
+from .state import AgentState
+from .utils import maybe_attach_followup, safe_int
 
 # 盘中交易确认窗口：用户需在60秒内确认，超时自动取消
 TRADE_CONFIRM_TIMEOUT_SEC = 60
@@ -168,10 +173,7 @@ async def trade_executor_node(state: AgentState) -> AgentState:
 
     # 获取实时价格
     market_data = await data_source_manager.get_realtime([symbol])
-    stock_info = None
-    for k, v in market_data.items():
-        stock_info = v
-        break
+    stock_info = next(iter(market_data.values()), None)
 
     current_price = stock_info.get("price", 0) if stock_info else 0
     prev_close = stock_info.get("prev_close", current_price) if stock_info else current_price

@@ -1416,12 +1416,6 @@ dependencies = [
     { name = "websockets" },
 ]
 
-[package.optional-dependencies]
-dev = [
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-]
-
 [package.dev-dependencies]
 dev = [
     { name = "pytest" },
@@ -1445,14 +1439,11 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.0.0" },
     { name = "pandas", specifier = ">=2.2.0" },
     { name = "pydantic", specifier = ">=2.9.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "python-multipart", specifier = ">=0.0.12" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30.0" },
     { name = "websockets", specifier = ">=13.0" },
 ]
-provides-extras = ["dev"]
 
 [package.metadata.requires-dev]
 dev = [

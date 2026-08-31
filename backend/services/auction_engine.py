@@ -13,13 +13,11 @@ A股集合竞价规则：
 4. 若多个价格成交量相同，选使未匹配量最小者；仍相同则取中间价
 5. 低于买方出价部分按开盘价成交，高于卖方出价部分也按开盘价成交
 """
-import asyncio
 import logging
-from datetime import datetime, time, date, timedelta, timezone
-from typing import Dict, List, Optional, Tuple
 from collections import defaultdict
+from datetime import date, datetime, time, timedelta, timezone
 
-from .trading_time import TradingTimeChecker, AuctionPhase
+from .trading_time import TradingTimeChecker
 
 BJT = timezone(timedelta(hours=8))
 
@@ -27,14 +25,14 @@ logger = logging.getLogger(__name__)
 
 # 竞价订单簿（内存，跨日清空）
 # user_id 维度：{user_id: [order_dict, ...]}
-_auction_orders: Dict[str, List[dict]] = {}
+_auction_orders: dict[str, list[dict]] = {}
 # 记录上次撮合日期，避免重复
-_last_auction_date: Optional[date] = None
+_last_auction_date: date | None = None
 # 记录上次撮合时间，用于 9:25 触发一次
-_last_auction_match_time: Optional[datetime] = None
+_last_auction_match_time: datetime | None = None
 
 # 竞价阶段产生的开盘价缓存 {symbol: open_price}
-_opening_prices: Dict[str, float] = {}
+_opening_prices: dict[str, float] = {}
 
 
 def _bj_now() -> datetime:
@@ -61,12 +59,12 @@ def unregister_auction_order(order_id: str, user_id: str):
     _auction_orders[user_id] = [o for o in _auction_orders[user_id] if o.get("order_id") != order_id]
 
 
-def get_auction_orders_for_symbol(symbol: str) -> Tuple[List[dict], List[dict]]:
+def get_auction_orders_for_symbol(symbol: str) -> tuple[list[dict], list[dict]]:
     """返回指定股票的所有竞价买单和卖单
     Returns: (buy_orders, sell_orders) 未排序
     """
     buys, sells = [], []
-    for uid, orders in _auction_orders.items():
+    for orders in _auction_orders.values():
         for o in orders:
             if o.get("symbol") != symbol:
                 continue
@@ -80,10 +78,10 @@ def get_auction_orders_for_symbol(symbol: str) -> Tuple[List[dict], List[dict]]:
 
 
 def determine_opening_price(
-    buy_orders: List[dict],
-    sell_orders: List[dict],
+    buy_orders: list[dict],
+    sell_orders: list[dict],
     prev_close: float = 0
-) -> Tuple[Optional[float], List[dict], List[dict], dict]:
+) -> tuple[float | None, list[dict], list[dict], dict]:
     """核心算法：确定集合竞价开盘价。
 
     Args:
@@ -206,7 +204,7 @@ def determine_opening_price(
     return best_price, filled_buys, filled_sells, stats
 
 
-async def run_auction_match() -> List[dict]:
+async def run_auction_match() -> list[dict]:
     """在 9:25 触发一次集合竞价撮合。每天只运行一次。"""
     global _last_auction_date, _last_auction_match_time
 
@@ -216,7 +214,6 @@ async def run_auction_match() -> List[dict]:
     if not TradingTimeChecker.is_trading_day():
         return []
 
-    phase = TradingTimeChecker.get_auction_phase()
     current_time = now.time()
 
     # 9:25:00 ~ 9:25:30 区间触发
@@ -234,7 +231,7 @@ async def run_auction_match() -> List[dict]:
     logger.info("=== 集合竞价撮合开始 (9:25) ===")
 
     # 收集所有竞价订单按股票分组
-    symbol_orders: Dict[str, Tuple[List[dict], List[dict]]] = defaultdict(lambda: ([], []))
+    symbol_orders: dict[str, tuple[list[dict], list[dict]]] = defaultdict(lambda: ([], []))
     for uid, orders in list(_auction_orders.items()):
         for o in orders:
             if o.get("status") not in ("ACCEPTED", "PENDING"):
@@ -323,12 +320,12 @@ async def run_auction_match() -> List[dict]:
     return all_fills
 
 
-def get_opening_price(symbol: str) -> Optional[float]:
+def get_opening_price(symbol: str) -> float | None:
     """获取某股票今日开盘价（竞价产生）"""
     return _opening_prices.get(symbol)
 
 
-def get_all_opening_prices() -> Dict[str, float]:
+def get_all_opening_prices() -> dict[str, float]:
     """获取所有已确定的开盘价"""
     return dict(_opening_prices)
 
@@ -374,13 +371,13 @@ def transition_to_continuous():
     return migrated
 
 
-def auction_order_book_summary(symbol: str = None) -> dict:
+def auction_order_book_summary(symbol: str | None = None) -> dict:
     """竞价订单簿快照（供 Agent 和前端查看）"""
     if symbol:
         buys, sells = get_auction_orders_for_symbol(symbol)
     else:
         buys, sells = [], []
-        for uid, orders in _auction_orders.items():
+        for orders in _auction_orders.values():
             for o in orders:
                 if o.get("status") not in ("ACCEPTED", "PENDING"):
                     continue

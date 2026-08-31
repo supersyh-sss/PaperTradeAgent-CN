@@ -1,9 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import ReactECharts from "echarts-for-react";
+import ReactEChartsCore from "echarts-for-react/lib/core";
+import * as echarts from "echarts/core";
+import { GridComponent, TooltipComponent, LegendComponent, DataZoomComponent } from "echarts/components";
+import { CandlestickChart, LineChart, BarChart, ScatterChart } from "echarts/charts";
+import { CanvasRenderer } from "echarts/renderers";
 import type { KlineData, RealtimeData } from "../api/client";
 import { api } from "../api/client";
 import { useChatStore } from "../stores/chatStore";
 import { CheckIcon, PlusIcon, ArrowUpIcon, ArrowDownIcon } from "./Icon";
+
+echarts.use([
+  GridComponent, TooltipComponent, LegendComponent, DataZoomComponent,
+  CandlestickChart, LineChart, BarChart, ScatterChart, CanvasRenderer,
+]);
 
 function fmtVol(v: number) { return v >= 1e8 ? (v / 1e8).toFixed(2) + "亿手" : v >= 1e4 ? (v / 1e4).toFixed(0) + "万手" : v + "手"; }
 
@@ -133,7 +142,7 @@ export default function StockDetail({ symbol, name }: { symbol: string; name: st
             </div>
           )}
           <div className="px-1 py-2">
-            {option && <ReactECharts option={option} style={{ height: 400 }} notMerge lazyUpdate />}
+            {option && <ReactEChartsCore echarts={echarts} option={option} style={{ height: 400 }} notMerge lazyUpdate />}
           </div>
           {kline.indicators && (
             <div className="px-3 pb-4 space-y-2.5">

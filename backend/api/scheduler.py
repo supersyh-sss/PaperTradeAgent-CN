@@ -4,15 +4,14 @@
 调度循环在服务层（services/scheduler.py）由后台任务驱动。
 """
 import logging
-from typing import Optional
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from ..middleware.error_handler import get_current_user
 from ..services import db
-from ..services.scheduler import run_task_now, _compute_next_run
-from datetime import datetime
+from ..services.scheduler import _compute_next_run, run_task_now
 
 logger = logging.getLogger(__name__)
 
@@ -25,16 +24,16 @@ class ScheduleCreate(BaseModel):
     prompt: str = Field(..., min_length=1)
     schedule_type: str = "interval"  # interval | daily
     interval_seconds: int = Field(3600, ge=10)
-    daily_time: Optional[str] = None  # HH:MM
+    daily_time: str | None = None  # HH:MM
 
 
 class ScheduleUpdate(BaseModel):
-    name: Optional[str] = None
-    prompt: Optional[str] = None
-    schedule_type: Optional[str] = None
-    interval_seconds: Optional[int] = Field(None, ge=10)
-    daily_time: Optional[str] = None
-    status: Optional[str] = None  # active | paused
+    name: str | None = None
+    prompt: str | None = None
+    schedule_type: str | None = None
+    interval_seconds: int | None = Field(None, ge=10)
+    daily_time: str | None = None
+    status: str | None = None  # active | paused
 
 
 @router.get("/tasks")

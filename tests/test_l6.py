@@ -4,14 +4,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from backend.harness.safety_gate import SafetyGate, PermissionLevel
 from backend.agents.response_generator import (
+    _DEGRADED_PREFIX,
+    _LOW_CONFIDENCE_NOTE,
     _fallback_response,
     _fallback_response_body,
     _low_confidence_note,
-    _DEGRADED_PREFIX,
-    _LOW_CONFIDENCE_NOTE,
 )
+from backend.harness.safety_gate import PermissionLevel, SafetyGate
 
 
 # ---- D1 最小权限默认值 ----

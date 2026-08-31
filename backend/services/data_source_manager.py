@@ -1,14 +1,14 @@
 """多数据源管理器：自动故障切换 + 健康恢复"""
 import logging
-from enum import Enum
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from enum import Enum
+from typing import ClassVar
 
-from .cache import market_cache, api_limiter
-from .tencent_api import tencent_api
-from .sina_api import sina_api
-from .symbol import pure_code, to_tencent_code
+from .cache import market_cache
 from .live_prices import add_hot_symbol
+from .sina_api import sina_api
+from .symbol import pure_code
+from .tencent_api import tencent_api
 
 logger = logging.getLogger(__name__)
 
@@ -22,15 +22,15 @@ class DataSource(Enum):
 class DataSourceManager:
     """多数据源管理器"""
 
-    PRIORITY = [DataSource.TENCENT, DataSource.SINA]
+    PRIORITY: ClassVar[list[DataSource]] = [DataSource.TENCENT, DataSource.SINA]
     RECOVERY_INTERVAL = timedelta(minutes=5)
 
     def __init__(self):
-        self.failed_sources: Dict[DataSource, datetime] = {}
-        self.success_count: Dict[DataSource, int] = {s: 0 for s in DataSource}
-        self.fail_count: Dict[DataSource, int] = {s: 0 for s in DataSource}
+        self.failed_sources: dict[DataSource, datetime] = {}
+        self.success_count: dict[DataSource, int] = {s: 0 for s in DataSource}
+        self.fail_count: dict[DataSource, int] = {s: 0 for s in DataSource}
 
-    async def get_realtime(self, codes: List[str]) -> Dict[str, dict]:
+    async def get_realtime(self, codes: list[str]) -> dict[str, dict]:
         """按优先级获取实时行情，自动故障切换。
         - 6 位纯代码股票返回 key 为纯代码
         - 已带 sh/sz/bj 前缀的代码（如指数）保持原 key
@@ -43,7 +43,7 @@ class DataSourceManager:
         for nc in normalized:
             add_hot_symbol(nc)
 
-        result: Dict[str, dict] = {}
+        result: dict[str, dict] = {}
 
         # 2. 股票代码：检查缓存并补齐缺失
         if normalized:
@@ -98,7 +98,7 @@ class DataSourceManager:
         c = (code or "").strip().lower()
         return len(c) == 8 and c.startswith(("sh", "sz", "bj")) and c[2:].isdigit()
 
-    async def get_kline(self, code: str, period: str = "day", count: int = 250) -> Optional[List[dict]]:
+    async def get_kline(self, code: str, period: str = "day", count: int = 250) -> list[dict] | None:
         """获取历史K线"""
         norm = pure_code(code)
         # 检查缓存
@@ -117,12 +117,12 @@ class DataSourceManager:
 
         return None
 
-    async def get_realtime_single(self, code: str) -> Optional[dict]:
+    async def get_realtime_single(self, code: str) -> dict | None:
         """获取单只股票行情"""
         result = await self.get_realtime([code])
         return result.get(pure_code(code))
 
-    async def _fetch_realtime(self, source: DataSource, codes: List[str]) -> Dict[str, dict]:
+    async def _fetch_realtime(self, source: DataSource, codes: list[str]) -> dict[str, dict]:
         if source == DataSource.TENCENT:
             return await tencent_api.get_realtime(codes)
         elif source == DataSource.SINA:

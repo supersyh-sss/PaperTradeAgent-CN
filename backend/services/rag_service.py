@@ -6,7 +6,7 @@
 import json
 import logging
 import re
-from typing import Iterable, List, Optional
+from collections.abc import Iterable
 
 import numpy as np
 
@@ -22,7 +22,7 @@ _NGRAM_FALLBACK_THRESHOLD = 0.4
 
 
 # ---- 向量相似度 ----
-def cosine_similarity(a: List[float], b: List[float]) -> float:
+def cosine_similarity(a: list[float], b: list[float]) -> float:
     va = np.asarray(a, dtype=np.float32)
     vb = np.asarray(b, dtype=np.float32)
     na = float(np.linalg.norm(va))
@@ -32,12 +32,12 @@ def cosine_similarity(a: List[float], b: List[float]) -> float:
     return float(np.dot(va, vb) / (na * nb))
 
 
-def embed_query(query: str) -> Optional[List[float]]:
+def embed_query(query: str) -> list[float] | None:
     from .embedding import embed_one
     return embed_one(query)
 
 
-def embed_texts(texts: List[str]) -> Optional[List[List[float]]]:
+def embed_texts(texts: list[str]) -> list[list[float]] | None:
     from .embedding import embed
     return embed(texts)
 
@@ -60,7 +60,7 @@ def ngram_similarity(a: str, b: str) -> float:
     return 2 * len(sa & sb) / (len(sa) + len(sb))
 
 
-def _ngram_search(query: str, documents: List[dict], top_k: int) -> list:
+def _ngram_search(query: str, documents: list[dict], top_k: int) -> list:
     scored = []
     for doc in documents:
         text = doc.get("text", "")
@@ -73,7 +73,7 @@ def _ngram_search(query: str, documents: List[dict], top_k: int) -> list:
     return scored[:top_k]
 
 
-def _parse_vector(value) -> Optional[List[float]]:
+def _parse_vector(value) -> list[float] | None:
     if value is None:
         return None
     if isinstance(value, str):
@@ -91,8 +91,8 @@ def _parse_vector(value) -> Optional[List[float]]:
 
 # ---- 统一检索入口 ----
 def search(query: str, documents: Iterable[dict], *, top_k: int = 3,
-           threshold: Optional[float] = None,
-           query_vector: Optional[List[float]] = None) -> list:
+           threshold: float | None = None,
+           query_vector: list[float] | None = None) -> list:
     """向量语义检索（embedding + 余弦），embedding 不可用时降级 n-gram。
 
     Args:

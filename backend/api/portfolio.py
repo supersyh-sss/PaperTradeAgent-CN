@@ -1,11 +1,12 @@
 """持仓查询 API"""
 from fastapi import APIRouter, Depends
-from ..services import db
+
 from ..middleware.error_handler import get_current_user
+from ..services import db
 from ..services.data_source_manager import data_source_manager
-from ..services.symbol import pure_code
-from ..services.position_service import compute_sellable
 from ..services.order_engine import get_active_orders
+from ..services.position_service import compute_sellable
+from ..services.symbol import pure_code
 
 router = APIRouter(prefix="/api/portfolio", tags=["portfolio"])
 

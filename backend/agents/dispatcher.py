@@ -6,7 +6,6 @@
 import asyncio
 import copy
 import time as _time
-from typing import List
 
 from .state import AgentState
 
@@ -33,7 +32,7 @@ def _schedule_trace(state: AgentState, agent_name: str, status: str, duration_ms
         pass
 
 
-async def dispatch_parallel_agents(state: AgentState, agents: List[str]) -> AgentState:
+async def dispatch_parallel_agents(state: AgentState, agents: list[str]) -> AgentState:
     """并行执行无依赖关系的 Agent，串行执行有依赖的 Agent"""
     if not agents:
         return state
@@ -66,7 +65,7 @@ async def dispatch_parallel_agents(state: AgentState, agents: List[str]) -> Agen
 
 async def _traced_node(node_func, agent_state: AgentState, agent_name: str, state: AgentState):
     """带计时与链路追踪的节点包装（L5：耗时 + token 逐 Agent 归集）"""
-    from ..harness.metrics import current_agent, MetricsCollector
+    from ..harness.metrics import MetricsCollector, current_agent
     start = _time.perf_counter()
     token = current_agent.set(agent_name)
     try:
@@ -106,9 +105,9 @@ def _merge_result(state: AgentState, result: dict, agent_name: str) -> None:
             state[key] = value
 
 
-from .quant_researcher import quant_researcher_node
 from .market_intelligence import market_intelligence_node
 from .portfolio_monitor import portfolio_monitor_node
+from .quant_researcher import quant_researcher_node
 
 # 仅并行调度池内的 Agent。trade_executor 为串行独立节点（依赖并行结果），
 # 由 graph 中的独立节点执行，不进入此映射，避免与 PARALLEL_AGENTS 不一致导致重复执行。

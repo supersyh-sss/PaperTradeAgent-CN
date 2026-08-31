@@ -7,15 +7,13 @@
   (4) 安全合规：策略拒绝率、安全事件数
 """
 
-import time
-import json as json_mod
 import logging
+import time
 from contextvars import ContextVar
-from enum import Enum, auto
 from dataclasses import dataclass, field
-from typing import Dict, Any, Optional, List
 from datetime import datetime
-from collections import defaultdict
+from enum import Enum, auto
+from typing import Any, ClassVar
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +64,7 @@ class HarnessMetrics:
     first_response_time: float = 0.0
     # Resource efficiency
     total_tokens: int = 0
-    context_sizes: List[int] = field(default_factory=list)
+    context_sizes: list[int] = field(default_factory=list)
     # Safety
     permission_denied: int = 0
     safety_events: int = 0
@@ -78,7 +76,7 @@ class HarnessMetrics:
         return self.tasks_success / self.tasks_total
 
     @property
-    def latencies(self) -> Dict[str, float]:
+    def latencies(self) -> dict[str, float]:
         return {
             "end_to_end_s": self.end_time - self.start_time if self.end_time else 0,
             "first_response_s": self.first_response_time,
@@ -90,7 +88,7 @@ class HarnessMetrics:
             return 0.0
         return sum(self.context_sizes) / len(self.context_sizes)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "session_id": self.session_id,
             "success_rate": self.success_rate,
@@ -110,10 +108,10 @@ class HarnessMetrics:
 class MetricsCollector:
     """全局度量收集器 — 单例"""
     _instance = None
-    _current: Optional[HarnessMetrics] = None
-    _history: List[Dict[str, Any]] = []
+    _current: HarnessMetrics | None = None
+    _history: ClassVar[list[dict[str, Any]]] = []
     _max_history: int = 1000
-    _agent_tokens: Dict[str, int] = {}
+    _agent_tokens: ClassVar[dict[str, int]] = {}
 
     def __new__(cls):
         if cls._instance is None:
@@ -128,7 +126,7 @@ class MetricsCollector:
         )
         return self._current
 
-    def record(self, metric_type: MetricType, value: Any = 1, meta: Optional[Dict] = None):
+    def record(self, metric_type: MetricType, value: Any = 1, meta: dict | None = None):
         """记录一条度量"""
         if not self._current:
             return
@@ -160,7 +158,7 @@ class MetricsCollector:
             case MetricType.SAFETY_EVENT:
                 m.safety_events += int(value)
 
-    def end_session(self) -> Optional[HarnessMetrics]:
+    def end_session(self) -> HarnessMetrics | None:
         """结束会话，归档度量"""
         if self._current:
             self._current.end_time = time.time()
@@ -173,7 +171,7 @@ class MetricsCollector:
             return result
         return None
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """获取汇总统计"""
         if not self._history:
             return {"sessions": 0}

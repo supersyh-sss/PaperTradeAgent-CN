@@ -6,9 +6,8 @@
   3. 关键 Agent 输出为空时自动标记重试
 """
 
-from typing import Optional
+
 from .schemas import (
-    QuantAssessment, IntelligenceAssessment, TradePlan, PortfolioAssessment,
     validate_agent_output,
 )
 
@@ -19,7 +18,7 @@ class QualityStatus:
     FAILED = "failed"
 
 
-def check_agent_output(agent_key: str, state: dict) -> tuple[str, str, Optional[str]]:
+def check_agent_output(agent_key: str, state: dict) -> tuple[str, str, str | None]:
     """检查 Agent 输出质量
 
     Returns:

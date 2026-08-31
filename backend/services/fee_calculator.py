@@ -7,7 +7,6 @@ A股交易费用计算器
 - 规费: 含经手费+证管费，买卖双向，万0.641 (实际上大多经纪商含在佣金内)
 """
 
-from typing import Dict, Optional, Tuple
 
 
 # A股费用标准（可配置）
@@ -22,7 +21,7 @@ def calculate_fee(
     side: str,
     exchange: str = "sh",
     commission_rate: float = COMMISSION_RATE,
-) -> Tuple[float, Dict[str, float]]:
+) -> tuple[float, dict[str, float]]:
     """计算单笔交易的费用
 
     Args:
@@ -38,8 +37,7 @@ def calculate_fee(
 
     # 1. 佣金（双向）
     commission = amount * commission_rate
-    if commission < COMMISSION_MIN:
-        commission = COMMISSION_MIN
+    commission = max(commission, COMMISSION_MIN)
     breakdown["佣金"] = round(commission, 2)
 
     # 2. 印花税（仅卖出）
@@ -61,7 +59,7 @@ def calculate_net_amount(
     quantity: int,
     side: str,
     exchange: str = "sh",
-) -> Tuple[float, float]:
+) -> tuple[float, float]:
     """计算成交净额和费用
 
     Returns:
@@ -91,7 +89,7 @@ def format_fee_estimate(price: float, quantity: int, side: str, exchange: str = 
     else:
         net = gross + fee
         lines.append(f"预估实际支出: {net:,.2f} 元")
-    lines.append(f"\n费用明细:")
+    lines.append("\n费用明细:")
     for name, val in breakdown.items():
         if val > 0:
             lines.append(f"  - {name}: {val:.2f} 元")

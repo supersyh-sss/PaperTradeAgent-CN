@@ -1,12 +1,14 @@
 """腾讯财经API - 主数据源"""
-import httpx
-import re
 import json
 import logging
-from typing import Dict, List, Optional
+import re
+from typing import ClassVar
+
+import httpx
+
+from ..config import HTTP_TIMEOUT_STOCK, TENCENT_KLINE_URL, TENCENT_REALTIME_URL
 from ..services.cache import api_limiter
-from ..services.symbol import to_tencent_code, pure_code
-from ..config import HTTP_TIMEOUT_STOCK, TENCENT_REALTIME_URL, TENCENT_KLINE_URL
+from ..services.symbol import pure_code, to_tencent_code
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +23,7 @@ class TencentFinanceAPI:
     # 0:未知 1:名称 2:代码 3:最新价 4:昨收 5:今开 6:成交量(手)
     # 7:外盘 8:内盘 9:买一价 10:买一量 ... 33:最高价 34:最低价
     # 36:成交量 37:成交额(万) 38:换手率 39:市盈率 44:流通市值 45:总市值 46:市净率
-    FIELD_MAP = {
+    FIELD_MAP: ClassVar[dict[str, int]] = {
         "name": 1, "code": 2, "price": 3, "prev_close": 4,
         "open": 5, "volume": 6, "high": 33, "low": 34,
         "amount": 37, "turnover": 38, "pe": 39, "pb": 46,
@@ -32,16 +34,15 @@ class TencentFinanceAPI:
         """统一代码格式：sh600519 或 sz000001（保持向后兼容）"""
         return to_tencent_code(code)
 
-    async def get_realtime(self, codes: List[str]) -> Dict[str, dict]:
+    async def get_realtime(self, codes: list[str]) -> dict[str, dict]:
         """获取实时行情"""
         formatted = [self._make_code(c) for c in codes]
         url = self.REALTIME_URL.format(codes=",".join(formatted))
 
-        async with api_limiter:
-            async with httpx.AsyncClient(timeout=HTTP_TIMEOUT_STOCK) as client:
-                resp = await client.get(url)
-                resp.encoding = "gbk"
-                text = resp.text
+        async with api_limiter, httpx.AsyncClient(timeout=HTTP_TIMEOUT_STOCK) as client:
+            resp = await client.get(url)
+            resp.encoding = "gbk"
+            text = resp.text
 
         results = {}
         pattern = re.compile(r'v_(\w+)="([^"]*)"')
@@ -81,7 +82,7 @@ class TencentFinanceAPI:
             }
         return results
 
-    async def get_kline(self, code: str, period: str = "day", count: int = 250) -> Optional[List[dict]]:
+    async def get_kline(self, code: str, period: str = "day", count: int = 250) -> list[dict] | None:
         """获取历史K线数据"""
         formatted = self._make_code(code)
         params = {
@@ -89,10 +90,9 @@ class TencentFinanceAPI:
             "param": f"{formatted},{period},,,{count},qfq",
             "r": "0.123456789",
         }
-        async with api_limiter:
-            async with httpx.AsyncClient(timeout=HTTP_TIMEOUT_STOCK) as client:
-                resp = await client.get(self.KLINE_URL, params=params)
-                text = resp.text
+        async with api_limiter, httpx.AsyncClient(timeout=HTTP_TIMEOUT_STOCK) as client:
+            resp = await client.get(self.KLINE_URL, params=params)
+            text = resp.text
 
         # 提取 JSON 数据
         try:
@@ -120,7 +120,7 @@ class TencentFinanceAPI:
             for row in kline_list
         ]
 
-    def _safe_float(self, fields: List[str], key: str) -> float:
+    def _safe_float(self, fields: list[str], key: str) -> float:
         try:
             val = fields[self.FIELD_MAP[key]]
             return float(val) if val else 0.0

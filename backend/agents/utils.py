@@ -1,14 +1,19 @@
 """Agent 共享工具函数 — 消除 6 个 Agent 文件中的重复代码"""
 import json as json_mod
-import random
-from datetime import datetime, timezone, timedelta
-from typing import Any, Optional, Callable, Awaitable, Union
 import logging
+import random
+from collections.abc import Callable
+from datetime import datetime, timedelta, timezone
+from typing import Any
 
-from .state import AgentState
-from .prompts import AGENT_PROFILES
+from ..services.agent_memory import (
+    compute_query_hash,
+    get_agent_memory,
+    save_agent_memory,
+)
 from ..services.trading_time import TradingTimeChecker
-from ..services.agent_memory import get_agent_memory, save_agent_memory, compute_query_hash
+from .prompts import AGENT_PROFILES
+from .state import AgentState
 
 BJT = timezone(timedelta(hours=8))
 logger = logging.getLogger(__name__)
@@ -19,7 +24,7 @@ def build_agent_log(
     content: str,
     *,
     is_chat_mode: bool = False,
-    chat_messages: Optional[list] = None,
+    chat_messages: list | None = None,
 ) -> dict:
     """统一构建 agent_log 字典
 
@@ -107,7 +112,7 @@ def maybe_attach_followup(
 async def load_cached_or_call_llm(
     state: AgentState,
     agent_key: str,
-    symbol: Optional[str],
+    symbol: str | None,
     user_input: str,
     llm_client: Any,
     build_messages: Callable[[], list[dict]],
@@ -115,7 +120,7 @@ async def load_cached_or_call_llm(
     check_trading: bool = True,
     max_tokens: int = 1024,
     temperature: float = 0.1,
-) -> Union[dict, None]:
+) -> dict | None:
     """缓存或 LLM 调用模式（统一入口，替代 4 个 Agent 文件中的重复逻辑）
 
     Args:
@@ -168,12 +173,12 @@ async def load_cached_or_call_llm(
                 logger.warning("缓存保存失败 [%s/%s]: %s", agent_key, symbol, e)
 
         return llm_result
-    except Exception as e:
-        logger.error("LLM 调用失败 [%s/%s]: %s", agent_key, symbol or "N/A", e, exc_info=True)
+    except Exception:
+        logger.exception("LLM 调用失败 [%s/%s]", agent_key, symbol or "N/A")
         return None
 
 
-def safe_int(value: Any) -> Optional[int]:
+def safe_int(value: Any) -> int | None:
     """将 LLM/外部输入安全转为 int；无法转换返回 None。
 
     覆盖 str('100'/'100.0')、float、int 等常见形态，避免后续与 int 做

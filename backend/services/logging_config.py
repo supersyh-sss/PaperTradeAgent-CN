@@ -8,14 +8,12 @@
 
 trace_id 通过 contextvars 在线程/协程间传递，无需显式传参。
 """
+import json
 import logging
 import sys
-import json
 import uuid
-import time as _time
 from contextvars import ContextVar
-from datetime import datetime, timezone, timedelta
-from typing import Optional
+from datetime import datetime, timedelta, timezone
 
 BJT = timezone(timedelta(hours=8))
 

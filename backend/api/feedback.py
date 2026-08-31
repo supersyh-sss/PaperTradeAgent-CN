@@ -1,10 +1,10 @@
 """消息反馈 API - 用户对 Agent 输出的点赞/倒赞（持久化）"""
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from typing import Optional
 
-from ..services import db
 from ..middleware.error_handler import get_current_user
+from ..services import db
 
 router = APIRouter(prefix="/api/feedback", tags=["feedback"])
 
@@ -22,7 +22,7 @@ class FeedbackRequest(BaseModel):
     agent: str
     content: str
     feedback: str  # up | down | none
-    conversation_id: Optional[str] = None
+    conversation_id: str | None = None
 
 
 @router.post("")

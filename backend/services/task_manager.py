@@ -1,7 +1,8 @@
 """异步任务管理器：包装 asyncio.create_task，提供错误处理和生命周期管理"""
 import asyncio
 import logging
-from typing import Callable, Coroutine, Any
+from collections.abc import Coroutine
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,7 @@ class TaskManager:
 
     async def startup(self):
         """启动时调用（预留扩展点）"""
-        logger.info(f"TaskManager 已启动")
+        logger.info("TaskManager 已启动")
 
     async def shutdown(self):
         """关闭时优雅取消所有运行中的任务"""

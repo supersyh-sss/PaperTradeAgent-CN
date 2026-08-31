@@ -8,15 +8,16 @@
 """
 
 import json as json_mod
-import re
 import logging
-from enum import Enum
-from typing import Dict, Any, Optional, List, Callable, Tuple
-from dataclasses import dataclass, field
+import re
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
+from typing import Any, ClassVar
 
-from .sandbox import SandboxManager, IsolationLevel
 from .metrics import MetricsCollector, MetricType
+from .sandbox import SandboxManager
 
 logger = logging.getLogger(__name__)
 
@@ -45,9 +46,9 @@ class PermissionCheck:
 
 class AuditLogger:
     """审计日志 — 全链路操作留痕"""
-    _logs: List[Dict[str, Any]] = []
+    _logs: ClassVar[list[dict[str, Any]]] = []
     _max_logs: int = 10000
-    _on_log: Optional[Callable] = None   # 可选的外部持久化回调
+    _on_log: Callable | None = None   # 可选的外部持久化回调
 
     @classmethod
     def set_persistence_handler(cls, handler: Callable):
@@ -55,7 +56,7 @@ class AuditLogger:
         cls._on_log = handler
 
     @classmethod
-    def log(cls, event_type: str, details: Dict[str, Any], user_id: str = "system"):
+    def log(cls, event_type: str, details: dict[str, Any], user_id: str = "system"):
         """记录审计事件"""
         entry = {
             "event_type": event_type,
@@ -76,7 +77,7 @@ class AuditLogger:
                 logger.warning("审计日志外部持久化回调失败", exc_info=True)
 
     @classmethod
-    def get_recent(cls, limit: int = 100) -> List[Dict]:
+    def get_recent(cls, limit: int = 100) -> list[dict]:
         return cls._logs[-limit:]
 
 
@@ -85,10 +86,10 @@ class SafetyGate:
     
     _sandbox: SandboxManager = None
     _metrics: MetricsCollector = None
-    _permissions: Dict[str, PermissionLevel] = {}  # user_id → level
+    _permissions: ClassVar[dict[str, PermissionLevel]] = {}  # user_id → level
 
     # SQL/命令注入检测模式
-    _INJECTION_PATTERNS = [
+    _INJECTION_PATTERNS: ClassVar[list[str]] = [
         r"(?i)(select|insert|update|delete|drop|alter|create|exec|execute)\s",
         r"(?i)(--|;|/\*|\*/)",
         r"(?i)(<script|javascript:|onerror=|onload=)",
@@ -97,9 +98,9 @@ class SafetyGate:
     ]
 
     # 写操作白名单：命中即要求 READ_WRITE（最小权限默认下需显式提权）
-    WRITE_OPERATIONS = {"trade", "place_order", "cancel_order", "watchlist_add", "watchlist_remove"}
+    WRITE_OPERATIONS: ClassVar[set[str]] = {"trade", "place_order", "cancel_order", "watchlist_add", "watchlist_remove"}
 
-    def __init__(self, sandbox: Optional[SandboxManager] = None):
+    def __init__(self, sandbox: SandboxManager | None = None):
         self._sandbox = sandbox or SandboxManager()
         self._metrics = MetricsCollector()
         # 最小权限默认：只读，写操作需显式提权
@@ -115,7 +116,7 @@ class SafetyGate:
 
     def check_operation(
         self, operation: str, user_id: str = "default",
-        required_level: Optional[PermissionLevel] = None,
+        required_level: PermissionLevel | None = None,
         authorized: bool = False,
     ) -> PermissionCheck:
         """校验操作权限。
@@ -173,7 +174,7 @@ class SafetyGate:
         }, user_id)
         return check
 
-    def sanitize_input(self, text: str) -> Tuple[str, List[str]]:
+    def sanitize_input(self, text: str) -> tuple[str, list[str]]:
         """输入净化：检测并移除潜在的注入攻击"""
         issues = []
         sanitized = text
@@ -190,7 +191,7 @@ class SafetyGate:
         
         return sanitized, issues
 
-    def filter_sensitive_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def filter_sensitive_data(self, data: dict[str, Any]) -> dict[str, Any]:
         """过滤敏感数据字段"""
         SENSITIVE_KEYS = {"password", "token", "secret", "api_key", "auth", "credential"}
         filtered = {}

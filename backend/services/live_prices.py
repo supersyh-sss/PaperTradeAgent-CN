@@ -10,26 +10,26 @@ import asyncio
 import json
 import logging
 import traceback
+from collections.abc import AsyncGenerator
 from datetime import datetime
-from typing import Dict, Set, Optional, List, AsyncGenerator
 
 import httpx
 
 from ..config import (
     LIVE_PRICE_POLL_INTERVAL,
 )
-from .indices import TRACKED_INDICES
 from . import db as db_service
 from .cache import api_limiter
+from .indices import TRACKED_INDICES
 from .order_engine import match_orders
-from .trading_time import TradingTimeChecker
 from .symbol import to_tencent_code
+from .trading_time import TradingTimeChecker
 
 logger = logging.getLogger(__name__)
 
 # ─── 热符号：用户会话中临时查询的股票 ───
 # {symbol: expiry_timestamp}  — 60s 无活动后自动移除
-_hot_symbols: Dict[str, float] = {}
+_hot_symbols: dict[str, float] = {}
 _HOT_SYMBOL_TTL = 60  # 秒
 
 # 非交易/非竞价时段的低频刷新策略：默认沿用上一次收盘缓存，仅间隔较久刷新一次
@@ -37,14 +37,14 @@ _OFF_HOURS_REFRESH_SECONDS = 300   # 非交易时段实际刷新间隔（5 分�
 _OFF_HOURS_CHECK_SECONDS = 60      # 非交易时段状态检查粒度（1 分钟，用于及时切换回实时监控）
 
 # 行情缓存
-_live_cache: Dict[str, dict] = {}
-_realtime_indices: Dict[str, dict] = {}
-_live_cache_ts: Optional[str] = None  # 行情缓存最后更新时间（北京时间 ISO）
+_live_cache: dict[str, dict] = {}
+_realtime_indices: dict[str, dict] = {}
+_live_cache_ts: str | None = None  # 行情缓存最后更新时间（北京时间 ISO）
 
 # SSE 事件队列
-_price_event_queues: Dict[str, asyncio.Queue] = {}  # 证券代码 -> 价格事件队列
+_price_event_queues: dict[str, asyncio.Queue] = {}  # 证券代码 -> 价格事件队列
 _order_event_queue: asyncio.Queue = None  # 全局订单事件队列
-_last_prices: Dict[str, float] = {}  # 上次价格，用于检测变动
+_last_prices: dict[str, float] = {}  # 上次价格，用于检测变动
 
 
 def _get_order_queue() -> asyncio.Queue:
@@ -62,7 +62,7 @@ def add_hot_symbol(symbol: str):
     logger.debug(f"注册热符号: {symbol}")
 
 
-def _resolve_cache(symbol: str) -> Optional[str]:
+def _resolve_cache(symbol: str) -> str | None:
     """将任意格式代码解析为 _live_cache 中的 key（腾讯格式: sh/sz/bj+6位）。
     例如: "000001" → "sz000001", "sh600519" → "sh600519"
     """
@@ -79,7 +79,7 @@ def _resolve_cache(symbol: str) -> Optional[str]:
     return None
 
 
-def get_live_price(symbol: str) -> Optional[float]:
+def get_live_price(symbol: str) -> float | None:
     """获取缓存的实时价格（非阻塞）"""
     key = _resolve_cache(symbol)
     if not key:
@@ -90,7 +90,7 @@ def get_live_price(symbol: str) -> Optional[float]:
     return None
 
 
-def get_cache_item(symbol: str, key_filter: str) -> Optional[float]:
+def get_cache_item(symbol: str, key_filter: str) -> float | None:
     """获取缓存中指定字段"""
     cache_key = _resolve_cache(symbol)
     if not cache_key:
@@ -101,24 +101,24 @@ def get_cache_item(symbol: str, key_filter: str) -> Optional[float]:
     return None
 
 
-def get_index_overview() -> Dict[str, dict]:
+def get_index_overview() -> dict[str, dict]:
     """获取指数快照"""
     return dict(_realtime_indices)
 
 
-def get_live_cache_time() -> Optional[str]:
+def get_live_cache_time() -> str | None:
     """获取行情缓存最后更新时间（供 Agent 时间感知）"""
     return _live_cache_ts
 
 
-def get_all_live_prices() -> Dict[str, dict]:
+def get_all_live_prices() -> dict[str, dict]:
     """获取全部缓存价格（仅腾讯格式 key，如 sh600519 / sz000001）。
     使用者需通过 get_cached_price() 或 _resolve_cache() 按纯代码查找。
     """
     return dict(_live_cache)
 
 
-def get_live_price_batch(symbols: List[str]) -> Dict[str, float]:
+def get_live_price_batch(symbols: list[str]) -> dict[str, float]:
     """批量获取价格（返回 {symbol: price}，symbol 为纯代码格式）。
     供 settings.py 等内部模块使用。
     """
@@ -139,7 +139,7 @@ def get_all_cached_prices() -> dict:
     return get_all_live_prices()
 
 
-def get_cached_price(symbol: str) -> Optional[dict]:
+def get_cached_price(symbol: str) -> dict | None:
     """向后兼容：返回单只缓存价格（完整字段）"""
     key = _resolve_cache(symbol)
     if not key:
@@ -175,7 +175,7 @@ def _on_order_status_change(order: dict):
         pass
 
 
-async def subscribe_price_stream(codes: List[str]) -> AsyncGenerator[str, None]:
+async def subscribe_price_stream(codes: list[str]) -> AsyncGenerator[str, None]:
     """SSE 实时股价流（向后兼容）"""
     # 为每个 code 创建事件队列
     for code in codes:
@@ -220,7 +220,7 @@ async def subscribe_order_stream(user_id: str) -> AsyncGenerator[str, None]:
         try:
             event = await asyncio.wait_for(queue.get(), timeout=LIVE_PRICE_POLL_INTERVAL)
             yield f"data: {event}\n\n"
-        except asyncio.TimeoutError:
+        except TimeoutError:
             # 心跳
             yield f"data: {json.dumps({'type': 'heartbeat'}, ensure_ascii=False)}\n\n"
 
@@ -231,7 +231,7 @@ def start_live_service():
     logger.info("实时行情轮询服务已启动（v3 批量模式）")
 
 
-async def _parse_tencent_batch(text: str) -> Dict[str, dict]:
+async def _parse_tencent_batch(text: str) -> dict[str, dict]:
     """解析腾讯批量行情响应: v_CODE="..." 或 var hq_str_CODE=..."""
     result = {}
     for line in text.strip().split("\n"):
@@ -258,8 +258,8 @@ async def _parse_tencent_batch(text: str) -> Dict[str, dict]:
             if len(fields) < 32:
                 continue
             
-            def _f(i):
-                return float(fields[i]) if i < len(fields) and fields[i] and fields[i] not in ("0.000", "0") else 0.0
+            def _f(i, _fields=fields):
+                return float(_fields[i]) if i < len(_fields) and _fields[i] and _fields[i] not in ("0.000", "0") else 0.0
             
             item = {
                 "name": fields[1],
@@ -319,7 +319,7 @@ async def live_price_poller():
         f"限流器={api_limiter.max_rate}req/{api_limiter.time_period}s"
     )
     
-    _last_fetch_ts: Optional[float] = None  # 上次实际请求时间（事件循环单调时钟）
+    _last_fetch_ts: float | None = None  # 上次实际请求时间（事件循环单调时钟）
 
     async with httpx.AsyncClient(timeout=5) as client:
         while True:
@@ -344,7 +344,7 @@ async def live_price_poller():
                     continue
 
                 # ── 收集本轮需要查询的全部符号 ──
-                symbols_to_fetch: Set[str] = set()
+                symbols_to_fetch: set[str] = set()
                 
                 # 1. 指数（固定6只，已为腾讯格式）
                 for idx in TRACKED_INDICES:

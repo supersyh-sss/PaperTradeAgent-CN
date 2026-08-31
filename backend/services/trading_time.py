@@ -1,7 +1,7 @@
 """交易时间判断器 — 含集合竞价阶段"""
-from datetime import datetime, time, timedelta, timezone, date
+from datetime import date, datetime, time, timedelta, timezone
 from enum import Enum
-from typing import Optional
+from typing import ClassVar
 
 try:
     import chinese_calendar as cc
@@ -37,7 +37,7 @@ class TradingTimeChecker:
     AFTERNOON_END = time(15, 0)
 
     # 兜底：当 chinese-calendar 不支持的年份或导入失败时使用
-    HOLIDAYS_FALLBACK = {
+    HOLIDAYS_FALLBACK: ClassVar[set[str]] = {
         "2026-01-01", "2026-01-02",  # 元旦
         "2026-02-16", "2026-02-17", "2026-02-18", "2026-02-19", "2026-02-20",  # 春节
         "2026-04-06",  # 清明节
@@ -48,7 +48,7 @@ class TradingTimeChecker:
     }
 
     # chinese_calendar 返回的英文节日名 -> 中文名
-    HOLIDAY_NAMES_CN = {
+    HOLIDAY_NAMES_CN: ClassVar[dict[str, str]] = {
         "New Year's Day": "元旦",
         "Spring Festival": "春节",
         "Tomb-Sweeping Day": "清明节",
@@ -106,7 +106,7 @@ class TradingTimeChecker:
                 cls.AFTERNOON_START <= now_time <= cls.AFTERNOON_END)
 
     @classmethod
-    def get_next_trading_day(cls, after: Optional[date] = None) -> datetime:
+    def get_next_trading_day(cls, after: date | None = None) -> datetime:
         """获取下一个交易日（默认从明天开始）"""
         base = after or cls._now().date()
         next_day = base + timedelta(days=1)

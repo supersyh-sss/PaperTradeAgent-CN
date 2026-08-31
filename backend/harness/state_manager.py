@@ -6,11 +6,10 @@
   - 提供状态检查点/快照/回滚能力
 """
 
-import json as json_mod
 import logging
-from typing import Dict, Any, Optional, List
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any, ClassVar
 
 logger = logging.getLogger(__name__)
 
@@ -21,9 +20,9 @@ class StateCheckpoint:
     checkpoint_id: str
     agent_name: str
     phase: str           # "before" | "after"
-    state_snapshot: Dict[str, Any] = field(default_factory=dict)
+    state_snapshot: dict[str, Any] = field(default_factory=dict)
     timestamp: str = ""
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
         if not self.timestamp:
@@ -40,8 +39,8 @@ class StateManager:
     """
 
     _instance = None
-    _checkpoints: Dict[str, List[StateCheckpoint]] = {}
-    _sessions: Dict[str, Dict[str, Any]] = {}
+    _checkpoints: ClassVar[dict[str, list[StateCheckpoint]]] = {}
+    _sessions: ClassVar[dict[str, dict[str, Any]]] = {}
     _max_checkpoints: int = 50
 
     def __new__(cls):
@@ -49,7 +48,7 @@ class StateManager:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def init_session(self, session_id: str, initial_state: Dict[str, Any]) -> Dict[str, Any]:
+    def init_session(self, session_id: str, initial_state: dict[str, Any]) -> dict[str, Any]:
         """初始化会话状态"""
         self._sessions[session_id] = dict(initial_state)
         return self._sessions[session_id]
@@ -65,20 +64,20 @@ class StateManager:
             self._sessions[session_id] = {}
         self._sessions[session_id][key] = value
 
-    def update(self, session_id: str, updates: Dict[str, Any]):
+    def update(self, session_id: str, updates: dict[str, Any]):
         """批量更新状态"""
         if session_id not in self._sessions:
             self._sessions[session_id] = {}
         self._sessions[session_id].update(updates)
 
-    def snapshot(self, session_id: str) -> Optional[Dict[str, Any]]:
+    def snapshot(self, session_id: str) -> dict[str, Any] | None:
         """获取当前状态快照"""
         return dict(self._sessions.get(session_id, {}))
 
     def checkpoint(
         self, session_id: str, agent_name: str, phase: str,
-        metadata: Optional[Dict] = None,
-    ) -> Optional[StateCheckpoint]:
+        metadata: dict | None = None,
+    ) -> StateCheckpoint | None:
         """创建状态检查点"""
         state = self.snapshot(session_id)
         if state is None:
@@ -118,7 +117,7 @@ class StateManager:
         self._sessions.pop(session_id, None)
         self._checkpoints.pop(session_id, None)
 
-    def extract_for_llm(self, session_id: str, keys: List[str]) -> Dict[str, Any]:
+    def extract_for_llm(self, session_id: str, keys: list[str]) -> dict[str, Any]:
         """提取指定字段供 LLM 上下文注入（状态投影）"""
         session = self._sessions.get(session_id, {})
         return {k: session[k] for k in keys if k in session}

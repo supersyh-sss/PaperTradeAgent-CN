@@ -2,13 +2,18 @@
 import json as json_mod
 import logging
 from datetime import datetime
-from .state import AgentState
+
+from ..services.agent_memory import (
+    compute_query_hash,
+    get_agent_memory,
+    save_agent_memory,
+)
+from ..services.indices import TRACKED_INDICES
 from ..services.llm import deepseek
 from ..services.market_tool import get_index_overview
-from ..services.indices import TRACKED_INDICES
 from ..services.trading_time import TradingTimeChecker
-from ..services.agent_memory import get_agent_memory, save_agent_memory, compute_query_hash
-from .prompts import MARKET_INTELLIGENCE_SYSTEM, AGENT_PROFILES
+from .prompts import AGENT_PROFILES, MARKET_INTELLIGENCE_SYSTEM
+from .state import AgentState
 from .utils import maybe_attach_followup
 
 logger = logging.getLogger(__name__)
@@ -169,7 +174,7 @@ async def market_intelligence_node(state: AgentState) -> AgentState:
     else:
         # No news = skip the section entirely, just note sentiment
         if abs(sentiment_score) < 0.1:
-            lines.append(f"最近没什么大新闻，盘面平稳")
+            lines.append("最近没什么大新闻，盘面平稳")
         else:
             lines.append(f"舆情{sentiment_label}，但没什么具体消息")
 
@@ -407,7 +412,7 @@ def _build_intel_summary(intel: dict, symbol: str) -> str:
 
 async def _intel_llm_with_tools(state: AgentState, symbol: str, name: str) -> dict:
     """A4：多轮工具编排，LLM 自主决定查询个股新闻/市场概览。失败返回 parse_error 标记。"""
-    from .tool_agent import run_tool_agent, parse_agent_json
+    from .tool_agent import parse_agent_json, run_tool_agent
     from .tools import TOOLS_BY_AGENT
 
     user_input = state.get("user_input", "")
@@ -466,7 +471,7 @@ async def _intel_llm_legacy(state: AgentState, intel: dict, symbol: str) -> dict
 
 async def _market_overview_llm_with_tools(state: AgentState) -> dict:
     """A4：大盘概览分支多轮工具编排，LLM 自主调用 get_market_overview。"""
-    from .tool_agent import run_tool_agent, parse_agent_json
+    from .tool_agent import parse_agent_json, run_tool_agent
     from .tools import TOOLS_BY_AGENT
 
     user_input = state.get("user_input", "")

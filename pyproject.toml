@@ -24,22 +24,34 @@ dependencies = [
     "fastembed>=0.8.0",
 ]
 
-[project.optional-dependencies]
-dev = [
-    "pytest>=8.0.0",
-    "pytest-asyncio>=0.24.0",
-]
-
 [[tool.uv.index]]
 url = "https://pypi.tuna.tsinghua.edu.cn/simple"
 default = true
 
-[tool.uv]
-dev-dependencies = [
+[dependency-groups]
+dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.24.0",
     "ruff>=0.6.0",
 ]
+
+[tool.ruff.lint]
+# 以下规则为本项目的刻意设计决策，予以豁免：
+# - BLE001/S110/S112: LLM 应用常见的防御性兜底异常（降级、静默恢复）
+# - DTZ005/DTZ007/DTZ011: A股系统统一按中国时区（东八区）本地时间运行
+# - ASYNC230: 启动初始化/独立采集脚本中的一次性文件读取，非热路径
+ignore = [
+    "BLE001",   # blind-except — 兜底异常是 agent 降级机制
+    "S110",     # try-except-pass — 幂等迁移/清理的静默恢复
+    "S112",     # try-except-continue — 采集循环单条失败跳过
+    "DTZ005",   # datetime.now() 无时区 — A股系统按东八区本地时间运行
+    "DTZ007",   # strptime 无 %z — 解析本地时间字符串
+    "DTZ011",   # date.today() 无时区 — 同上
+    "ASYNC230", # async 中 open() — 仅初始化/脚本场景
+]
+
+[tool.ruff.lint.per-file-ignores]
+"backend/harness/*.py" = ["F401"]  # harness 公共 API 模块：导入即转发
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

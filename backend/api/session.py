@@ -6,8 +6,8 @@ import logging
 from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 
-from ..services.session_manager import set_active_session, poll_messages
 from ..services.live_prices import _get_order_queue
+from ..services.session_manager import poll_messages, set_active_session
 
 logger = logging.getLogger(__name__)
 
@@ -51,8 +51,8 @@ async def session_stream(session_id: str = Query(...)):
             except asyncio.CancelledError:
                 logger.info(f"会话 SSE 断开: {session_id}")
                 break
-            except Exception as e:
-                logger.error(f"会话 SSE 异常: {e}", exc_info=True)
+            except Exception:
+                logger.exception("会话 SSE 异常")
                 await asyncio.sleep(3)
 
     return StreamingResponse(

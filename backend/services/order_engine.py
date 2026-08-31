@@ -8,38 +8,37 @@
 5. 内存订单簿与 DB 通过异步任务同步，失败不阻塞主流程
 """
 import asyncio
-import uuid
 import logging
-from datetime import datetime, date, time, timedelta, timezone
-from typing import Dict, List, Optional
+import uuid
 from collections import defaultdict
+from datetime import date, datetime, time, timedelta, timezone
 
 from .symbol import pure_code
-from .trading_time import TradingTimeChecker, AuctionPhase
+from .trading_time import AuctionPhase, TradingTimeChecker
 
 BJT = timezone(timedelta(hours=8))
 logger = logging.getLogger(__name__)
 
 # ── 全局订单簿（内存） ──
 # order_id -> order dict
-_orders: Dict[str, dict] = {}
+_orders: dict[str, dict] = {}
 # symbol -> set(order_id)
-_symbol_orders: Dict[str, set] = defaultdict(set)
+_symbol_orders: dict[str, set] = defaultdict(set)
 
 # 锁：维护订单簿时的扣款/持仓锁定记录
 # user_id -> 已锁定资金（买入委托按委托价*数量锁定）
-_locked_balances: Dict[str, float] = defaultdict(float)
+_locked_balances: dict[str, float] = defaultdict(float)
 # user_id:symbol -> 已锁定股数
-_locked_positions: Dict[str, int] = defaultdict(int)
+_locked_positions: dict[str, int] = defaultdict(int)
 
 # DB 同步开关
 _db_sync_enabled = False
 
 # 订单状态变化回调（SSE 推送等）
-_status_callbacks: List[callable] = []
+_status_callbacks: list[callable] = []
 
 # 记录已执行过收盘清理的日期，避免重复清理
-_last_auto_cancel_date: Optional[date] = None
+_last_auto_cancel_date: date | None = None
 
 
 def register_status_callback(cb: callable):
@@ -82,8 +81,9 @@ async def _sync_locked_state(user_id: str):
     if not _db_sync_enabled:
         return
     try:
-        from . import db
         import json
+
+        from . import db
         locked_bal = str(round(_locked_balances.get(user_id, 0), 2))
         locked_pos = json.dumps({k: v for k, v in _locked_positions.items() if k.startswith(f"{user_id}:")})
         await db.save_locked_state(user_id, "locked_balance", locked_bal)
@@ -138,7 +138,7 @@ def _matchable_qty(order: dict, current_price: float, volume: float = 0) -> int:
 
 def place_order(user_id: str, symbol: str, name: str, side: str,
                 quantity: int, price: float, order_type: str = "LIMIT",
-                lock_price: float = None, auction: bool = False) -> dict:
+                lock_price: float | None = None, auction: bool = False) -> dict:
     """下单。返回 {"order_id", "status", "message", "order"}。
 
     注意：资金/持仓锁定由调用方在下单成功后负责，本函数只校验基础规则。
@@ -183,10 +183,8 @@ def place_order(user_id: str, symbol: str, name: str, side: str,
     # 竞价订单的初始状态
     if auction:
         status = "PENDING"  # 竞价订单待撮合
-        ord_type_display = "AUCTION"
     else:
         status = "ACCEPTED"
-        ord_type_display = order_type
 
     order = {
         "order_id": oid,
@@ -232,7 +230,7 @@ def place_order(user_id: str, symbol: str, name: str, side: str,
     }
 
 
-def cancel_order(order_id: str, user_id: str = None) -> dict:
+def cancel_order(order_id: str, user_id: str | None = None) -> dict:
     """撤单。user_id 用于校验订单归属，防止横向越权。
     竞价锁定期（9:20-9:25）不可撤单。
     """
@@ -271,11 +269,11 @@ def cancel_order(order_id: str, user_id: str = None) -> dict:
     return {"success": True, "message": "订单已撤销", "order": order}
 
 
-def get_order(order_id: str) -> Optional[dict]:
+def get_order(order_id: str) -> dict | None:
     return _orders.get(order_id)
 
 
-def get_user_orders(user_id: str, status_filter: List[str] = None) -> List[dict]:
+def get_user_orders(user_id: str, status_filter: list[str] | None = None) -> list[dict]:
     result = [dict(o) for o in _orders.values() if o["user_id"] == user_id]
     if status_filter:
         result = [o for o in result if o["status"] in status_filter]
@@ -283,13 +281,13 @@ def get_user_orders(user_id: str, status_filter: List[str] = None) -> List[dict]
     return result
 
 
-def get_active_orders(user_id: str) -> List[dict]:
+def get_active_orders(user_id: str) -> list[dict]:
     return get_user_orders(user_id, ["ACCEPTED", "PARTIALLY_FILLED", "PENDING"])
 
 
 # ── Matching Engine ──
 
-async def match_orders(current_prices: Dict[str, dict]) -> List[dict]:
+async def match_orders(current_prices: dict[str, dict]) -> list[dict]:
     """撮合引擎：检查所有挂单是否达到成交条件。
     
     仅在连续竞价时段撮合。竞价阶段由 auction_engine 单独处理。
@@ -371,17 +369,13 @@ async def match_orders(current_prices: Dict[str, dict]) -> List[dict]:
 
         side = order["side"]
         order_price = order["price"]
-        remaining = order["quantity"] - order["filled_qty"]
         prev_close = market_data.get("prev_close", current_price)
 
         fill_qty = 0
         fill_price = 0.0
 
         if order["order_type"] == "LIMIT":
-            if side == "BUY" and current_price <= order_price:
-                fill_price = order_price
-                fill_qty = _matchable_qty(order, current_price, market_data.get("volume", 0))
-            elif side == "SELL" and current_price >= order_price:
+            if side == "BUY" and current_price <= order_price or side == "SELL" and current_price >= order_price:
                 fill_price = order_price
                 fill_qty = _matchable_qty(order, current_price, market_data.get("volume", 0))
         elif order["order_type"] == "MARKET":
@@ -636,7 +630,7 @@ def _reject(msg: str) -> dict:
     return {"order_id": "", "status": "REJECTED", "message": msg}
 
 
-def get_order_book_snapshot(symbol: str = None) -> dict:
+def get_order_book_snapshot(symbol: str | None = None) -> dict:
     if symbol:
         oids = _symbol_orders.get(symbol, set())
         orders = [_orders[oid] for oid in oids if oid in _orders]

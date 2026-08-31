@@ -6,18 +6,16 @@
   避免偏差过大导致用户一进场就浮亏，也避免偏差过小导致挂单无法成交。
 - 中长线针对日/月/年级别，采用趋势 + 支撑阻力 + ATR 的稳健估算。
 """
-from typing import Dict, Optional
 
-from .quant_signals import compute_atr
-from .kline_cache import get_cached_kline, save_kline_to_cache
-
-import numpy as np
 import pandas as pd
+
+from .kline_cache import get_cached_kline, save_kline_to_cache
+from .quant_signals import compute_atr
 
 logger = __import__("logging").getLogger(__name__)
 
 
-async def _fetch_minute_kline(symbol: str, period: str = "m5", count: int = 96) -> Optional[list]:
+async def _fetch_minute_kline(symbol: str, period: str = "m5", count: int = 96) -> list | None:
     """获取分钟级 K 线（带周期感知的文件缓存，避免污染日线缓存）。"""
     cached = get_cached_kline(symbol, period, days=count)
     if cached:

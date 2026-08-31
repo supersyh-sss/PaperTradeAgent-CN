@@ -1,13 +1,16 @@
 """Auction Engine & Trading Time Tests
 Validates: phase detection, auction matching algorithm, order engine integration.
 """
-import os, sys
+import os
+import sys
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
 
-from datetime import datetime, time
-from services.trading_time import TradingTimeChecker, AuctionPhase
+from datetime import time
+
 from services.auction_engine import determine_opening_price
-from services.order_engine import place_order, cancel_order, get_active_orders
+from services.order_engine import get_active_orders, place_order
+from services.trading_time import AuctionPhase
 
 
 def test_auction_phase_detection():
@@ -68,8 +71,8 @@ def test_auction_phase_detection():
         assert actual == expected, f"Cancellable {phase}: expected {expected}, got {actual}"
     
     print("  Cancellable logic: all correct")
+    assert passed == len(test_cases), f"Phase detection failed {passed}/{passed + failed}"
     print("  PASS\n")
-    return passed == len(test_cases)
 
 
 def test_auction_matching_algorithm():
@@ -127,7 +130,7 @@ def test_auction_matching_algorithm():
     sells4 = [
         {"order_id": "s5", "symbol": "000004", "side": "SELL", "quantity": 500, "price": 10.00, "created_at": "09:17:00"},
     ]
-    price4, fb4, fs4, stats4 = determine_opening_price(buys4, sells4, 10.00)
+    price4, fb4, _fs4, stats4 = determine_opening_price(buys4, sells4, 10.00)
     print(f"  Scenario 4 (Limit-up buy): price={price4}, matched={stats4['matched_volume']}")
     # Both 10.00 and 10.10 have matched=500; 10.00 wins (closest to prev_close=10.00)
     assert price4 == 10.00, f"Expected 10.00 (tie-break by prev_close), got {price4}"
@@ -137,7 +140,6 @@ def test_auction_matching_algorithm():
     print(f"    b7 (limit-up 11.00) filled: {b7_filled}")
     
     print("  PASS\n")
-    return True
 
 
 def test_auction_unfilled_handling():
@@ -169,7 +171,6 @@ def test_auction_unfilled_handling():
     assert price_b is None, f"Expected no match (no cross), got {price_b}"
     print(f"  Case B (no cross): correctly returns None - {stats_b['reason']} ✓")
     print("  PASS\n")
-    return True
 
 
 def test_order_engine_auction_awareness():
@@ -191,21 +192,27 @@ def test_order_engine_auction_awareness():
     print(f"  Active orders for test_auction: {len(active)}")
     
     print("  PASS\n")
-    return True
 
 
 def main():
-    results = []
-    
-    results.append(("Phase Detection", test_auction_phase_detection()))
-    results.append(("Matching Algorithm", test_auction_matching_algorithm()))
-    results.append(("Unfilled Handling", test_auction_unfilled_handling()))
-    results.append(("Order Engine", test_order_engine_auction_awareness()))
+    """脚本入口：独立运行测试（python tests/test_auction.py）。"""
+    tests = [
+        ("Phase Detection", test_auction_phase_detection),
+        ("Matching Algorithm", test_auction_matching_algorithm),
+        ("Unfilled Handling", test_auction_unfilled_handling),
+        ("Order Engine", test_order_engine_auction_awareness),
+    ]
     
     print("=" * 50)
-    all_pass = all(r[1] for r in results)
-    for name, ok in results:
+    all_pass = True
+    for name, fn in tests:
+        try:
+            fn()
+            ok = True
+        except AssertionError:
+            ok = False
         print(f"  {'✓' if ok else '✗'} {name}")
+        all_pass = all_pass and ok
     print(f"\n  {'ALL PASSED' if all_pass else 'SOME FAILED'}")
     print("=" * 50)
     

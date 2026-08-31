@@ -6,11 +6,8 @@ A股股票代码快速查询服务
 
 import json
 import os
-import time
-from datetime import datetime
-from typing import Optional, List, Dict
 
-_STOCK_DATA: Optional[dict] = None
+_STOCK_DATA: dict | None = None
 _LOAD_TIME: float = 0
 _DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "data", "a_stock_list.json")
 
@@ -34,7 +31,7 @@ def _get() -> dict:
     return _STOCK_DATA if _STOCK_DATA else _load()
 
 
-def resolve(code_or_name: str) -> Optional[dict]:
+def resolve(code_or_name: str) -> dict | None:
     """通过代码或名称解析股票信息
     Args:
         code_or_name: 6位代码(600519) 或 名称(贵州茅台) 或 简称(茅台)
@@ -67,7 +64,7 @@ def resolve(code_or_name: str) -> Optional[dict]:
     return None
 
 
-def search(query: str, limit: int = 10) -> List[dict]:
+def search(query: str, limit: int = 10) -> list[dict]:
     """模糊搜索股票（代码或名称子串匹配）
     Args:
         query: 搜索关键词
@@ -106,14 +103,14 @@ def search(query: str, limit: int = 10) -> List[dict]:
     return results[:limit]
 
 
-def get_name(code: str) -> Optional[str]:
+def get_name(code: str) -> str | None:
     """通过代码获取名称"""
     data = _get()
     info = data.get("code_index", {}).get(code.strip())
     return info["name"] if info else None
 
 
-def get_code(name: str) -> Optional[str]:
+def get_code(name: str) -> str | None:
     """通过名称获取代码"""
     data = _get()
     codes = data.get("name_index", {}).get(name.strip())
@@ -124,7 +121,7 @@ def get_count() -> int:
     return _get().get("count", 0)
 
 
-def get_all_stocks() -> List[dict]:
+def get_all_stocks() -> list[dict]:
     return _get().get("stocks", [])
 
 

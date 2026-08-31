@@ -1,7 +1,7 @@
 """LangGraph Agent 共享状态定义 - v2: Multi-agent thinking logs"""
-from typing import TypedDict, List, Dict, Optional, Annotated
-from datetime import datetime, timezone, timedelta
 import operator
+from datetime import UTC, datetime, timedelta, timezone
+from typing import Annotated, TypedDict
 
 BJT = timezone(timedelta(hours=8))
 
@@ -16,7 +16,7 @@ def _to_beijing_time(iso_str: str | None) -> str:
         dt = datetime.fromisoformat(normalized)
         # 确保时区感知
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
+            dt = dt.replace(tzinfo=UTC)
         bj_dt = dt.astimezone(BJT)
         return bj_dt.strftime("%Y-%m-%d %H:%M 北京时间")
     except (ValueError, TypeError):
@@ -44,24 +44,24 @@ class AgentState(TypedDict):
     trace_id: str  # 全链路追踪 ID
 
     # Quant Researcher
-    quant_assessment: Optional[dict]        # LLM structured technical analysis output
+    quant_assessment: dict | None        # LLM structured technical analysis output
 
     # Market Intelligence
-    intelligence_assessment: Optional[dict]  # LLM structured sentiment analysis output
+    intelligence_assessment: dict | None  # LLM structured sentiment analysis output
 
     # Portfolio Monitor
-    portfolio_assessment: Optional[dict]     # LLM structured portfolio health assessment
+    portfolio_assessment: dict | None     # LLM structured portfolio health assessment
 
     # Trade Executor
-    executor_assessment: Optional[dict]      # LLM structured trade plan assessment
+    executor_assessment: dict | None      # LLM structured trade plan assessment
 
     # Chief Strategist Output
     intent: str
-    active_symbol: Optional[str]
-    active_name: Optional[str]
+    active_symbol: str | None
+    active_name: str | None
     in_watchlist: bool
-    watchlist: List[dict]
-    needed_agents: List[str]       # agents to invoke (e.g. ["quant_researcher", "market_intelligence"])
+    watchlist: list[dict]
+    needed_agents: list[str]       # agents to invoke (e.g. ["quant_researcher", "market_intelligence"])
     needs_report: bool             # whether a comprehensive report is needed (set by chief)
     chief_response: str            # direct response from chief for chat/watchlist (skips response_generator)
     strategy_direction: str        # human-readable summary of chief's decision
@@ -71,65 +71,65 @@ class AgentState(TypedDict):
     analyze_watchlist: bool        # 是否批量分析自选股列表（逐只量化扫描）
 
     # Task Planning (L3): 结构化任务计划 + 有界反思循环
-    plan: Optional[dict]           # {"goal", "intent", "steps": [{"agent","task"}], "reasoning"}
+    plan: dict | None           # {"goal", "intent", "steps": [{"agent","task"}], "reasoning"}
     retry_count: int               # 质量门触发的重试次数（上限 1 次，防死循环）
 
     # Data Layer
-    market_data: Dict[str, dict]
-    kline_data: Optional[List[dict]]
-    technical_analysis: Optional[dict]
-    fundamental_analysis: Optional[dict]   # 基本面估值（PE/PB/换手/市值等）
+    market_data: dict[str, dict]
+    kline_data: list[dict] | None
+    technical_analysis: dict | None
+    fundamental_analysis: dict | None   # 基本面估值（PE/PB/换手/市值等）
 
     # Market Intelligence
-    market_intelligence: Optional[dict]
-    sentiment_score: Optional[float]
-    risk_alerts: Optional[List[dict]]
+    market_intelligence: dict | None
+    sentiment_score: float | None
+    risk_alerts: list[dict] | None
 
     # Trade Layer
-    trade_plan: Optional[dict]
-    trade_side: Optional[str]
-    trade_quantity: Optional[int]
+    trade_plan: dict | None
+    trade_side: str | None
+    trade_quantity: int | None
     is_trading_time: bool
-    order_result: Optional[dict]
-    pending_action: Optional[dict]       # 通用待确认操作（自选股增删/撤单/交易）
+    order_result: dict | None
+    pending_action: dict | None       # 通用待确认操作（自选股增删/撤单/交易）
     direct_execute: bool                 # 用户明确要求直接执行交易（跳过确认卡片）
 
     # Portfolio Layer
-    portfolio_summary: Optional[dict]
+    portfolio_summary: dict | None
     has_positions: bool                 # 用户是否有活跃持仓
-    positions: List[dict]               # 持仓列表（供 chief 注入上下文）
+    positions: list[dict]               # 持仓列表（供 chief 注入上下文）
 
     # Multi-Agent Thinking Logs
-    agent_logs: List[dict]
+    agent_logs: list[dict]
 
     # Conversation Layer
-    messages: Annotated[List[dict], operator.add]
+    messages: Annotated[list[dict], operator.add]
     final_response: str
     timestamp: str
 
     # Time Awareness & History Management
-    current_time: Optional[str]  # 当前时间（ISO格式），用于Agent时间感知
-    history_summary: Optional[str]  # 历史会话摘要（长对话裁剪后生成）
+    current_time: str | None  # 当前时间（ISO格式），用于Agent时间感知
+    history_summary: str | None  # 历史会话摘要（长对话裁剪后生成）
 
     # Direct Agent Addressing
-    direct_agent: Optional[str]          # 用户直接寻址的目标 Agent key（如 "quant_researcher"）
-    mentioned_agents: Optional[str]      # 多Agent寻址时所有匹配的key列表（逗号分隔）
+    direct_agent: str | None          # 用户直接寻址的目标 Agent key（如 "quant_researcher"）
+    mentioned_agents: str | None      # 多Agent寻址时所有匹配的key列表（逗号分隔）
     agent_chat_mode: bool                # Agent 自由对话模式（非分析任务，纯聊天）
-    agent_chat_response: Optional[List[dict]]  # Agent 聊天回复（支持多条消息）
+    agent_chat_response: list[dict] | None  # Agent 聊天回复（支持多条消息）
 
     # Harness Engineering Framework
-    harness_context: Optional[str]       # REPL Read阶段组装的上下文
-    harness_metrics: Optional[dict]      # 当前会话度量快照
+    harness_context: str | None       # REPL Read阶段组装的上下文
+    harness_metrics: dict | None      # 当前会话度量快照
     safety_verified: bool               # 安全门控是否已通过
-    execution_logs: Optional[List[dict]] # 执行日志（审计追踪）
+    execution_logs: list[dict] | None # 执行日志（审计追踪）
 
 
 def create_initial_state(
     user_input: str,
     user_id: str = "default",
     conversation_id: str = "",
-    history_messages: List[dict] = None,
-    current_time: str = None,
+    history_messages: list[dict] | None = None,
+    current_time: str | None = None,
 ) -> AgentState:
     """Create initial state for a new conversation turn."""
     if not conversation_id:

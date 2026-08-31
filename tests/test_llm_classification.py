@@ -1,10 +1,16 @@
 """
 测试首席策略官 LLM 自主分类 — 纯大模型驱动，无关键词兜底
 验证每种输入类型后 LLM 的 intent / needs_report / needed_agents 决策
+
+NOTE: 集成测试脚本，需要真实后端服务运行（python tests/test_llm_classification.py）。
+pytest 通过 __test__ = False 跳过收集。
 """
 import asyncio
 import json
+
 import httpx
+
+__test__ = False  # 集成脚本，非 pytest 单测，禁止收集
 
 BASE = "http://localhost:8001"
 AUTH = {"Authorization": "Bearer mvp_test_token_2026"}
@@ -93,7 +99,7 @@ async def main():
     for r in results:
         agents_str = ", ".join(r["needed_agents"]) if isinstance(r["needed_agents"], list) else str(r["needed_agents"])
         status = "ERR" if r["error"] else "OK"
-        print(f"{r['idx']:<3} {r['input']:<24} {r['intent']:<14} {str(r['needs_report']):<8} {agents_str:<40} {status}")
+        print(f"{r['idx']:<3} {r['input']:<24} {r['intent']:<14} {r['needs_report']!s:<8} {agents_str:<40} {status}")
     print("=" * 90)
     
     # Check for issues

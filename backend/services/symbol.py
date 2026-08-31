@@ -7,7 +7,6 @@
 - 代码/名称映射优先使用 stock_lookup 全量数据（5633只）
 """
 import re
-from typing import Optional
 
 _CODE_RE = re.compile(r"(?:sh|sz|bj)?(\d{6})")
 
@@ -37,7 +36,7 @@ def is_stock_code(symbol: str) -> bool:
     return s[0] in "03648"
 
 
-def normalize_symbol(query: str) -> Optional[str]:
+def normalize_symbol(query: str) -> str | None:
     """将任意输入归一化为 6 位数字代码；无法识别返回 None"""
     if not query:
         return None
