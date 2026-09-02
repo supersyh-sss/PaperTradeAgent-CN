@@ -11,3 +11,6 @@
 
 详细模块职责见 docs/ARCHITECTURE.md。
 """
+
+# 版本单一来源：main.py 的 FastAPI 实例、启动审计日志与根路由均引用此值
+__version__ = "0.1.0"

@@ -25,8 +25,9 @@ class FeedbackLevel(Enum):
 @dataclass
 class FeedbackPackage:
     """结构化反馈包"""
+
     agent_name: str
-    phase: str           # "planning" | "execution" | "reflection"
+    phase: str  # "planning" | "execution" | "reflection"
     level: FeedbackLevel = FeedbackLevel.SUCCESS
     summary: str = ""
     data: dict[str, Any] = field(default_factory=dict)
@@ -64,37 +65,52 @@ class FeedbackAssembler:
 
     @staticmethod
     def success(
-        agent_name: str, phase: str, summary: str = "", data: dict | None = None,
+        agent_name: str,
+        phase: str,
+        summary: str = "",
+        data: dict | None = None,
         metrics: dict | None = None,
     ) -> FeedbackPackage:
         """构造成功反馈"""
         return FeedbackPackage(
-            agent_name=agent_name, phase=phase,
-            level=FeedbackLevel.SUCCESS, summary=summary,
-            data=data or {}, metrics=metrics or {},
+            agent_name=agent_name,
+            phase=phase,
+            level=FeedbackLevel.SUCCESS,
+            summary=summary,
+            data=data or {},
+            metrics=metrics or {},
         )
 
     @staticmethod
     def warning(
-        agent_name: str, phase: str, summary: str, warnings: list[str],
+        agent_name: str,
+        phase: str,
+        summary: str,
+        warnings: list[str],
         data: dict | None = None,
     ) -> FeedbackPackage:
         """构造警告反馈"""
         return FeedbackPackage(
-            agent_name=agent_name, phase=phase,
-            level=FeedbackLevel.WARNING, summary=summary,
-            warnings=warnings, data=data or {},
+            agent_name=agent_name,
+            phase=phase,
+            level=FeedbackLevel.WARNING,
+            summary=summary,
+            warnings=warnings,
+            data=data or {},
         )
 
     @staticmethod
     def error(
-        agent_name: str, phase: str, errors: list[str],
+        agent_name: str,
+        phase: str,
+        errors: list[str],
         suggestions: list[str] | None = None,
         fallback_data: dict | None = None,
     ) -> FeedbackPackage:
         """构造错误反馈（含降级建议）"""
         return FeedbackPackage(
-            agent_name=agent_name, phase=phase,
+            agent_name=agent_name,
+            phase=phase,
             level=FeedbackLevel.ERROR,
             errors=errors,
             suggestions=suggestions or ["Retry the request with corrected parameters"],
@@ -104,11 +120,14 @@ class FeedbackAssembler:
 
     @staticmethod
     def fatal(
-        agent_name: str, phase: str, errors: list[str],
+        agent_name: str,
+        phase: str,
+        errors: list[str],
     ) -> FeedbackPackage:
         """构造致命错误反馈"""
         return FeedbackPackage(
-            agent_name=agent_name, phase=phase,
+            agent_name=agent_name,
+            phase=phase,
             level=FeedbackLevel.FATAL,
             errors=errors,
             suggestions=["Stop execution and notify user"],

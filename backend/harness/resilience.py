@@ -20,24 +20,27 @@ T = TypeVar("T")
 
 
 class CircuitState(Enum):
-    CLOSED = "closed"           # 正常通行
-    OPEN = "open"               # 熔断中，拒绝请求
-    HALF_OPEN = "half_open"     # 试探性恢复
+    CLOSED = "closed"  # 正常通行
+    OPEN = "open"  # 熔断中，拒绝请求
+    HALF_OPEN = "half_open"  # 试探性恢复
 
 
 @dataclass
 class RetryPolicy:
     """重试策略配置"""
+
     max_retries: int = 3
-    base_delay_ms: float = 500          # 基础延迟（毫秒）
-    max_delay_ms: float = 10000         # 最大延迟（毫秒）
-    backoff_multiplier: float = 2.0     # 退避乘数
-    jitter: bool = True                 # 是否添加随机抖动
+    base_delay_ms: float = 500  # 基础延迟（毫秒）
+    max_delay_ms: float = 10000  # 最大延迟（毫秒）
+    backoff_multiplier: float = 2.0  # 退避乘数
+    jitter: bool = True  # 是否添加随机抖动
     retryable_exceptions: tuple = (Exception,)  # 可重试的异常类型
 
     def delay_for_attempt(self, attempt: int) -> float:
         """计算第 N 次重试的延迟时间（秒）"""
-        delay = min(self.base_delay_ms * (self.backoff_multiplier ** attempt), self.max_delay_ms)
+        delay = min(
+            self.base_delay_ms * (self.backoff_multiplier**attempt), self.max_delay_ms
+        )
         if self.jitter:
             delay = delay * (0.5 + random.random())
         return delay / 1000.0
@@ -46,11 +49,12 @@ class RetryPolicy:
 @dataclass
 class CircuitBreaker:
     """熔断器 — 3种状态：CLOSED / OPEN / HALF_OPEN"""
+
     name: str
-    failure_threshold: int = 5           # 连续失败 N 次后熔断
-    recovery_timeout_ms: float = 30000   # 熔断后多久进入 HALF_OPEN
-    half_open_max_requests: int = 2      # HALF_OPEN 状态下允许的试探请求数
-    
+    failure_threshold: int = 5  # 连续失败 N 次后熔断
+    recovery_timeout_ms: float = 30000  # 熔断后多久进入 HALF_OPEN
+    half_open_max_requests: int = 2  # HALF_OPEN 状态下允许的试探请求数
+
     _state: CircuitState = CircuitState.CLOSED
     _failure_count: int = 0
     _last_failure_time: float = 0.0
@@ -59,8 +63,11 @@ class CircuitBreaker:
     @property
     def state(self) -> CircuitState:
         """获取当前状态（含自动恢复逻辑）"""
-        if (self._state == CircuitState.OPEN
-                and time.time() - self._last_failure_time > self.recovery_timeout_ms / 1000.0):
+        if (
+            self._state == CircuitState.OPEN
+            and time.time() - self._last_failure_time
+            > self.recovery_timeout_ms / 1000.0
+        ):
             self._state = CircuitState.HALF_OPEN
             self._half_open_count = 0
             logger.info(f"CircuitBreaker [{self.name}]: OPEN → HALF_OPEN")
@@ -92,14 +99,19 @@ class CircuitBreaker:
         self._last_failure_time = time.time()
         if self._state == CircuitState.HALF_OPEN:
             self._state = CircuitState.OPEN
-            logger.warning(f"CircuitBreaker [{self.name}]: HALF_OPEN → OPEN (trial failed)")
+            logger.warning(
+                f"CircuitBreaker [{self.name}]: HALF_OPEN → OPEN (trial failed)"
+            )
         elif self._failure_count >= self.failure_threshold:
             self._state = CircuitState.OPEN
-            logger.warning(f"CircuitBreaker [{self.name}]: CLOSED → OPEN ({self._failure_count} failures)")
+            logger.warning(
+                f"CircuitBreaker [{self.name}]: CLOSED → OPEN ({self._failure_count} failures)"
+            )
 
 
 class ResilienceManager:
     """韧性管理器 — 集成重试 + 熔断"""
+
     _policy: RetryPolicy
     _breakers: ClassVar[dict[str, CircuitBreaker]] = {}
 
@@ -139,7 +151,7 @@ class ResilienceManager:
                 last_error = e
                 if _breaker:
                     _breaker.record_failure()
-                
+
                 if attempt < _policy.max_retries:
                     delay = _policy.delay_for_attempt(attempt)
                     logger.warning(

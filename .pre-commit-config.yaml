@@ -1,0 +1,22 @@
+# 统一提交前的代码质量门禁：本地执行一次，与 CI 中完全相同的检查。
+#
+# 安装：uv run pre-commit install        （需先 uv sync --extra dev）
+# 手动触发全部检查：uv run pre-commit run --all-files
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.2
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-merge-conflict
+      - id: debug-statements
+      - id: check-added-large-files
+        args: ["--maxkb=1024"]

@@ -8,17 +8,33 @@
   - eval_intent.py 进 CI 门禁（无 API 依赖、确定性）
   - 本模块做离线质量回归（依赖 API、有 token 成本、结果带随机性，不进入 CI）
 """
+
 import logging
 
 from .llm import flash_client
 
 logger = logging.getLogger(__name__)
 
-INTENT_VALUES = ["analyze", "trade", "query", "portfolio", "watchlist", "chat", "market", "cancel_order"]
+INTENT_VALUES = [
+    "analyze",
+    "trade",
+    "query",
+    "portfolio",
+    "watchlist",
+    "chat",
+    "market",
+    "cancel_order",
+]
 
 _INTENT_LABELS = {
-    "analyze": "分析", "trade": "交易", "query": "查询", "portfolio": "持仓",
-    "watchlist": "自选股", "chat": "对话", "market": "市场概览", "cancel_order": "撤单",
+    "analyze": "分析",
+    "trade": "交易",
+    "query": "查询",
+    "portfolio": "持仓",
+    "watchlist": "自选股",
+    "chat": "对话",
+    "market": "市场概览",
+    "cancel_order": "撤单",
 }
 
 
@@ -36,10 +52,15 @@ def build_intent_messages(user_input: str) -> list:
     ]
 
 
-def build_quality_messages(question: str, answer: str,
-                           reference_points: list[str] | None = None) -> list:
+def build_quality_messages(
+    question: str, answer: str, reference_points: list[str] | None = None
+) -> list:
     """构造输出质量评判的 messages（deterministic，便于单测）。"""
-    ref_text = "\n".join(f"- {p}" for p in (reference_points or [])) if reference_points else "（未提供）"
+    ref_text = (
+        "\n".join(f"- {p}" for p in (reference_points or []))
+        if reference_points
+        else "（未提供）"
+    )
     system = (
         "你是金融助手的回答质量评审员。基于用户问题与参考要点，对回答打分。\n"
         "四个维度各 0~5 分：relevance（是否切题）、completeness（是否完整覆盖要点）、"
@@ -48,11 +69,7 @@ def build_quality_messages(question: str, answer: str,
         '"format_ok":bool,"overall":int,"reason":"str","issues":["str"]}\n'
         "overall 为 0~5 综合分，issues 列出具体问题（无则空数组）。"
     )
-    user = (
-        f"用户问题：{question}\n\n"
-        f"参考要点：\n{ref_text}\n\n"
-        f"待评审回答：\n{answer}"
-    )
+    user = f"用户问题：{question}\n\n参考要点：\n{ref_text}\n\n待评审回答：\n{answer}"
     return [
         {"role": "system", "content": system},
         {"role": "user", "content": user},
@@ -82,13 +99,15 @@ async def judge_intent(user_input: str) -> dict:
     return {"intent": intent, "confidence": confidence}
 
 
-async def judge_answer_quality(question: str, answer: str,
-                               reference_points: list[str] | None = None) -> dict:
+async def judge_answer_quality(
+    question: str, answer: str, reference_points: list[str] | None = None
+) -> dict:
     """用 Flash 模型评估回答质量，返回结构化评分。"""
     try:
         result = await flash_client.chat_json(
             build_quality_messages(question, answer, reference_points),
-            temperature=0.0, max_tokens=512,
+            temperature=0.0,
+            max_tokens=512,
         )
     except Exception as e:
         logger.warning("质量评判调用失败：%s", e)

@@ -26,7 +26,9 @@ class FeedbackRequest(BaseModel):
 
 
 @router.post("")
-async def submit_feedback(req: FeedbackRequest, user_id: str = Depends(get_current_user)):
+async def submit_feedback(
+    req: FeedbackRequest, user_id: str = Depends(get_current_user)
+):
     feedback = req.feedback.strip().lower()
     if feedback not in ("up", "down", "none"):
         raise HTTPException(400, "feedback 必须为 up / down / none")
@@ -36,7 +38,9 @@ async def submit_feedback(req: FeedbackRequest, user_id: str = Depends(get_curre
         await db.delete_feedback(user_id, h)
         return {"success": True, "content_hash": h, "feedback": None}
 
-    await db.upsert_feedback(user_id, req.agent, req.content, h, feedback, req.conversation_id)
+    await db.upsert_feedback(
+        user_id, req.agent, req.content, h, feedback, req.conversation_id
+    )
     return {"success": True, "content_hash": h, "feedback": feedback}
 
 

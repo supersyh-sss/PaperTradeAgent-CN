@@ -1,4 +1,5 @@
 """认证中间件 + 全局异常处理"""
+
 import logging
 
 from fastapi import Header, HTTPException, Query, Request
@@ -20,7 +21,9 @@ def _extract_bearer_token(authorization: str) -> str:
     return authorization.strip()
 
 
-async def get_current_user(authorization: str = Header(None), token: str = Query(None)) -> str:
+async def get_current_user(
+    authorization: str = Header(None), token: str = Query(None)
+) -> str:
     """获取当前用户（MVP Token 认证，兼容 header 与 query 传递）"""
     token_value = _extract_bearer_token(authorization) or _extract_bearer_token(token)
     expected = _extract_bearer_token(TEST_TOKEN)
@@ -60,6 +63,6 @@ async def global_exception_handler(request: Request, exc: Exception):
             "error_code": exc_type,
             "message": message,
             # 仅对 4xx 暴露原始错误；5xx 不暴露实现细节
-            "detail": str(exc) if status_code < 500 else None
-        }
+            "detail": str(exc) if status_code < 500 else None,
+        },
     )

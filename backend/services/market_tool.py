@@ -5,6 +5,7 @@
 - 通过关键词判断用户想问的是「市场整体」还是「具体股票」
 - 所有 Agent 节点均可调用，避免重复实现
 """
+
 import logging
 import re
 
@@ -18,14 +19,39 @@ from .trading_time import TradingTimeChecker
 
 # 市场/大盘类关键词
 _MARKET_KEYWORDS = {
-    "大盘", "市场", "行情", "指数", "走势", "涨跌", "情绪", "沪市", "深市",
-    "a股", "股市", "上证", "深证", "创业板", "科创", "沪深300", "整体",
-    "板块", "行业", "概念", "题材",
+    "大盘",
+    "市场",
+    "行情",
+    "指数",
+    "走势",
+    "涨跌",
+    "情绪",
+    "沪市",
+    "深市",
+    "a股",
+    "股市",
+    "上证",
+    "深证",
+    "创业板",
+    "科创",
+    "沪深300",
+    "整体",
+    "板块",
+    "行业",
+    "概念",
+    "题材",
 }
 
 # 板块/行业类关键词（可扩展）
 _SECTOR_KEYWORDS = {
-    "银行", "证券", "保险", "白酒", "新能源", "医药", "半导体", "科技",
+    "银行",
+    "证券",
+    "保险",
+    "白酒",
+    "新能源",
+    "医药",
+    "半导体",
+    "科技",
 }
 
 
@@ -94,13 +120,15 @@ async def get_watchlist_snapshot(user_id: str) -> list[dict]:
     for item in watchlist:
         sym = item["symbol"]
         quote = realtime.get(sym, {})
-        result.append({
-            "symbol": sym,
-            "name": quote.get("name") or item.get("name", sym),
-            "price": quote.get("price", 0),
-            "change_pct": quote.get("change_pct", 0),
-            "volume": quote.get("volume", 0),
-        })
+        result.append(
+            {
+                "symbol": sym,
+                "name": quote.get("name") or item.get("name", sym),
+                "price": quote.get("price", 0),
+                "change_pct": quote.get("change_pct", 0),
+                "volume": quote.get("volume", 0),
+            }
+        )
     return result
 
 

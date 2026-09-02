@@ -39,6 +39,7 @@ interface ChatState {
   activeSymbol: string | null;
   activeName: string | null;
   watchlist: WatchlistItem[];
+  watchlistMax: number;
   portfolio: PortfolioData | null;
   conversations: ConversationItem[];
   conversationId: string;
@@ -107,6 +108,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   activeSymbol: null,
   activeName: null,
   watchlist: [],
+  watchlistMax: 5,
   portfolio: null,
   conversations: [],
   conversationId: generateConvId(),
@@ -504,7 +506,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   loadWatchlist: async () => {
     try {
       const data = await api.watchlist();
-      set({ watchlist: data.watchlist || [] });
+      set({ watchlist: data.watchlist || [], watchlistMax: data.max ?? 5 });
     } catch {}
   },
 
@@ -570,7 +572,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       sessionStream = null;
     }
     if (!convId) return;
-    const es = new EventSource(`/api/session/stream?session_id=${encodeURIComponent(convId)}`);
+    const token = (import.meta.env.VITE_TEST_TOKEN as string) || "Bearer mvp_test_token_2026";
+    const es = new EventSource(`/api/session/stream?session_id=${encodeURIComponent(convId)}&token=${encodeURIComponent(token)}`);
     sessionStream = es;
     es.onmessage = (ev) => {
       try {

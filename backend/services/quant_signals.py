@@ -14,20 +14,31 @@ def _series(values) -> pd.Series:
     return pd.Series([float(v) for v in values])
 
 
-def compute_atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> float:
+def compute_atr(
+    high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14
+) -> float:
     """平均真实波幅 ATR：度量波动，用于止损/止盈与目标价区间。"""
     prev_close = close.shift(1)
-    tr = pd.concat([
-        high - low,
-        (high - prev_close).abs(),
-        (low - prev_close).abs(),
-    ], axis=1).max(axis=1)
+    tr = pd.concat(
+        [
+            high - low,
+            (high - prev_close).abs(),
+            (low - prev_close).abs(),
+        ],
+        axis=1,
+    ).max(axis=1)
     atr = tr.ewm(alpha=1 / period, adjust=False).mean()
     return float(atr.iloc[-1]) if len(atr) else 0.0
 
 
-def compute_kdj(high: pd.Series, low: pd.Series, close: pd.Series,
-                n: int = 9, k_period: int = 3, d_period: int = 3) -> dict:
+def compute_kdj(
+    high: pd.Series,
+    low: pd.Series,
+    close: pd.Series,
+    n: int = 9,
+    k_period: int = 3,
+    d_period: int = 3,
+) -> dict:
     """随机指标 KDJ：短线超买超卖动量。"""
     low_n = low.rolling(window=n, min_periods=1).min()
     high_n = high.rolling(window=n, min_periods=1).max()
@@ -40,7 +51,9 @@ def compute_kdj(high: pd.Series, low: pd.Series, close: pd.Series,
         "k": round(float(k.iloc[-1]), 2),
         "d": round(float(d.iloc[-1]), 2),
         "j": round(float(j.iloc[-1]), 2),
-        "signal": "超买" if j.iloc[-1] > 80 else ("超卖" if j.iloc[-1] < 20 else "中性"),
+        "signal": "超买"
+        if j.iloc[-1] > 80
+        else ("超卖" if j.iloc[-1] < 20 else "中性"),
     }
 
 
@@ -51,7 +64,9 @@ def compute_roc(close: pd.Series, period: int = 12) -> float:
     return round(float((close.iloc[-1] / close.iloc[-1 - period] - 1) * 100), 2)
 
 
-def compute_williams_r(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> float:
+def compute_williams_r(
+    high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14
+) -> float:
     """威廉指标 %R：-20 以上超买，-80 以下超卖。"""
     hh = high.rolling(window=period, min_periods=1).max()
     ll = low.rolling(window=period, min_periods=1).min()
@@ -59,7 +74,9 @@ def compute_williams_r(high: pd.Series, low: pd.Series, close: pd.Series, period
     return round(float(wr.fillna(-50).iloc[-1]), 2)
 
 
-def compute_cci(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 20) -> float:
+def compute_cci(
+    high: pd.Series, low: pd.Series, close: pd.Series, period: int = 20
+) -> float:
     """顺势指标 CCI：±100 为阈值。"""
     tp = (high + low + close) / 3
     ma = tp.rolling(window=period, min_periods=1).mean()
@@ -84,17 +101,31 @@ def compute_obv(close: pd.Series, volume: pd.Series) -> str:
     return "neutral"
 
 
-def compute_adx(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> float:
+def compute_adx(
+    high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14
+) -> float:
     """平均趋向指数 ADX：趋势强度（>25 视为有趋势）。"""
     up = high.diff()
     down = -low.diff()
     plus_dm = pd.Series(np.where((up > down) & (up > 0), up, 0.0), index=high.index)
-    minus_dm = pd.Series(np.where((down > up) & (down > 0), down, 0.0), index=high.index)
+    minus_dm = pd.Series(
+        np.where((down > up) & (down > 0), down, 0.0), index=high.index
+    )
     prev_close = close.shift(1)
-    tr = pd.concat([high - low, (high - prev_close).abs(), (low - prev_close).abs()], axis=1).max(axis=1)
+    tr = pd.concat(
+        [high - low, (high - prev_close).abs(), (low - prev_close).abs()], axis=1
+    ).max(axis=1)
     atr = tr.ewm(alpha=1 / period, adjust=False).mean()
-    plus_di = 100 * plus_dm.ewm(alpha=1 / period, adjust=False).mean() / atr.replace(0, np.nan)
-    minus_di = 100 * minus_dm.ewm(alpha=1 / period, adjust=False).mean() / atr.replace(0, np.nan)
+    plus_di = (
+        100
+        * plus_dm.ewm(alpha=1 / period, adjust=False).mean()
+        / atr.replace(0, np.nan)
+    )
+    minus_di = (
+        100
+        * minus_dm.ewm(alpha=1 / period, adjust=False).mean()
+        / atr.replace(0, np.nan)
+    )
     dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, np.nan)
     adx = dx.ewm(alpha=1 / period, adjust=False).mean()
     return round(float(adx.fillna(0).iloc[-1]), 2)
@@ -108,8 +139,13 @@ def compute_volume_trend(volume: pd.Series, period: int = 20) -> float:
     return round(float(volume.iloc[-1] / avg), 2) if avg > 0 else 1.0
 
 
-def compute_mfi(high: pd.Series, low: pd.Series, close: pd.Series,
-                volume: pd.Series, period: int = 14) -> float:
+def compute_mfi(
+    high: pd.Series,
+    low: pd.Series,
+    close: pd.Series,
+    volume: pd.Series,
+    period: int = 14,
+) -> float:
     """资金流量指标 MFI：量价结合的超买超卖资金流（>80 超买，<20 超卖）。"""
     tp = (high + low + close) / 3
     raw_flow = tp * volume
@@ -160,7 +196,11 @@ def compute_extended_indicators(kline_data: list[dict]) -> dict | None:
     close = _series(df["close"])
     high = _series(df["high"])
     low = _series(df["low"])
-    volume = _series(df["volume"]) if "volume" in df and df["volume"].notna().any() else _series([0] * len(df))
+    volume = (
+        _series(df["volume"])
+        if "volume" in df and df["volume"].notna().any()
+        else _series([0] * len(df))
+    )
 
     atr = compute_atr(high, low, close)
     latest_close = float(close.iloc[-1])
@@ -329,4 +369,9 @@ def compute_quant_score(tech: dict, ext: dict) -> dict:
 
     score = round(max(0, min(100, score)), 1)
     label = "偏多" if score >= 60 else ("偏空" if score <= 40 else "中性")
-    return {"score": score, "label": label, "parts": parts, "regime": ext.get("regime", "range") if ext else "range"}
+    return {
+        "score": score,
+        "label": label,
+        "parts": parts,
+        "regime": ext.get("regime", "range") if ext else "range",
+    }

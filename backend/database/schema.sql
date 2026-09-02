@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS trades (
     filled_amount DECIMAL(15,2) DEFAULT 0,
     fill_price DECIMAL(10,3),
     lock_price DECIMAL(10,3),
+    lock_fee DECIMAL(10,2) DEFAULT 0,
     fee DECIMAL(10,2) DEFAULT 0,
     realized_pnl DECIMAL(15,2),
     status TEXT NOT NULL DEFAULT 'PENDING' CHECK(status IN ('PENDING', 'PARTIALLY_FILLED', 'FILLED', 'CANCELLED', 'REJECTED', 'ACCEPTED')),
@@ -207,3 +208,10 @@ CREATE TABLE IF NOT EXISTS user_profiles (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_user_profiles_user ON user_profiles(user_id);
+
+-- 高频检索联合索引（schema 基线；新索引请追加到 migrations.py 的新版本，勿改此处历史行）
+CREATE INDEX IF NOT EXISTS idx_trades_user_status ON trades(user_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_agent_traces_agent_time ON agent_traces(agent, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_agent_traces_created ON agent_traces(created_at);
+CREATE INDEX IF NOT EXISTS idx_trades_order ON trades(order_id);
+CREATE INDEX IF NOT EXISTS idx_scheduled_due ON scheduled_tasks(status, next_run_at);

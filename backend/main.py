@@ -1,4 +1,5 @@
 """FastAPI 主应用入口"""
+
 import logging
 import os
 import sys
@@ -9,9 +10,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from datetime import datetime
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from . import __version__
 from .api.chat import router as chat_router
 from .api.feedback import router as feedback_router
 from .api.market import router as market_router
@@ -24,8 +26,8 @@ from .api.settings import router as settings_router
 from .api.stocks import router as stocks_router
 from .api.trade import router as trade_router
 from .api.watchlist import router as watchlist_router
-from .config import CORS_ALLOW_CREDENTIALS, CORS_ALLOW_ORIGINS
-from .middleware.error_handler import global_exception_handler
+from .config import CORS_ALLOW_CREDENTIALS, CORS_ALLOW_ORIGINS, TEST_TOKEN
+from .middleware.error_handler import get_current_user, global_exception_handler
 from .middleware.rate_limit import RateLimitMiddleware
 from .middleware.trace import TraceMiddleware
 from .services.db import init_db
@@ -43,29 +45,40 @@ configure_root_logger(level=logging.INFO, json_format=True)
 logger = logging.getLogger(__name__)
 
 
+def _warn_insecure_config():
+    """生产安全基线校验：对可猜默认配置发出启动警告"""
+    if TEST_TOKEN in ("Bearer mvp_test_token_2026", "", "Bearer changeme"):
+        logger.warning(
+            "⚠ 检测到 TEST_TOKEN 使用默认/空值！生产环境必须通过 .env 配置强随机访问令牌，"
+            "否则任何知道默认值的客户端都可调用交易接口。"
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
+    _warn_insecure_config()
     # 启动时初始化数据库
     await init_db()
     logger.info("数据库初始化完成")
     logger.info(f"交易状态: {TradingTimeChecker.trading_status_info()}")
-    
+
     # Harness 初始化
     try:
         from .harness.metrics import MetricsCollector
         from .harness.safety_gate import AuditLogger
+
         MetricsCollector().start_session("server_boot")
-        AuditLogger.log("server_start", {"version": "0.1.0"})
+        AuditLogger.log("server_start", {"version": __version__})
         logger.info("Harness 工程框架已初始化")
     except Exception as e:
         logger.warning(f"Harness 初始化跳过: {e}")
-    
+
     # 恢复未完成的订单
     restored = await restore_orders()
     if restored:
         logger.info(f"已恢复 {restored} 个未完成订单")
-    
+
     # 注册订单成交回调（自动更新持仓和余额）
     set_fill_callback(_on_order_filled)
 
@@ -81,11 +94,13 @@ async def lifespan(app: FastAPI):
 
     # 启动后台持仓监控任务
     from .services.portfolio_monitor_bg import start_portfolio_monitor
+
     task_manager.create_task(start_portfolio_monitor(), name="portfolio_monitor")
     logger.info("后台持仓监控任务已启动")
 
     # 启动定时任务调度循环
     from .services.scheduler import start_scheduler
+
     start_scheduler()
     logger.info("定时任务调度循环已启动")
 
@@ -100,6 +115,7 @@ async def _on_order_filled(fill: dict):
         from .services.fee_calculator import calculate_fee
         from .services.position_service import apply_trade_fill
         from .services.symbol import exchange_prefix
+
         user_id = fill.get("user_id", "default")
         symbol = fill.get("symbol", "")
         name = fill.get("name", "")
@@ -132,13 +148,16 @@ async def _on_order_filled(fill: dict):
             f"总资产{result['total_assets']:.2f}"
         )
     except Exception:
+        # 必须向上抛出：live_prices 撮合循环据此调用 order_engine.rollback_fill_settlement，
+        # 将订单内存状态回滚为可再次撮合，避免订单簿与账目长期不一致。
         logger.exception("成交回调异常")
+        raise
 
 
 app = FastAPI(
     title="PaperTradeAgent - A股模拟投资交易系统",
     description="多Agent协作的A股模拟投资系统，基于LangGraph编排",
-    version="0.1.0",
+    version=__version__,
     lifespan=lifespan,
 )
 
@@ -186,19 +205,19 @@ async def health_check():
 
 
 @app.get("/api/harness/status")
-async def harness_status():
+async def harness_status(_: str = Depends(get_current_user)):
     """Harness 工程框架状态诊断"""
     try:
         from .harness.contracts import ContractRegistry
         from .harness.metrics import MetricsCollector
         from .harness.safety_gate import AuditLogger
         from .harness.sandbox import SandboxManager
-        
+
         metrics = MetricsCollector().get_summary()
         audit_recent = AuditLogger.get_recent(20)
         sandbox = SandboxManager().get_sandbox_info()
         contracts = {k: c.description for k, c in ContractRegistry()._contracts.items()}
-        
+
         return {
             "framework": "Harness v1.0",
             "principles": [
@@ -224,10 +243,11 @@ async def harness_status():
 
 
 @app.get("/api/harness/metrics")
-async def harness_metrics_detail():
+async def harness_metrics_detail(_: str = Depends(get_current_user)):
     """Harness 详细度量指标（基于持久化 agent_traces 聚合，L5 可观测性）"""
     try:
         from .services.db import get_metrics_summary
+
         persisted = await get_metrics_summary()
         # session_metrics 与 agent_traces 共用同一份持久化数据，避免空壳
         session_metrics = {
@@ -246,4 +266,4 @@ async def harness_metrics_detail():
 
 @app.get("/")
 async def root():
-    return {"message": "PaperTradeAgent API is running", "version": "0.1.0"}
+    return {"message": "PaperTradeAgent API is running", "version": __version__}

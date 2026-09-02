@@ -1,4 +1,5 @@
 """L4 语义检索（rag_service）单元测试 — 向量余弦 + n-gram 兜底，确定性可重复。"""
+
 import sys
 from pathlib import Path
 

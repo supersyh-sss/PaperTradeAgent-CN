@@ -8,6 +8,7 @@
 设计说明：引导页可跳过；被跳过的字段由前端填默认值后再落库。
 画像数据会被下游 Agent（策略/风控）作为用户风险偏好参考。
 """
+
 import logging
 
 from fastapi import APIRouter, Depends
@@ -159,30 +160,54 @@ async def get_profile(user_id: str = Depends(get_current_user)):
     profile = await db.get_user_profile(user_id)
     if not profile:
         await db.save_user_profile(
-            user_id, nickname="投资者", avatar="blue",
-            risk_level="balanced", risk_score=0, onboarding_completed=1,
+            user_id,
+            nickname="投资者",
+            avatar="blue",
+            risk_level="balanced",
+            risk_score=0,
+            onboarding_completed=1,
         )
         profile = await db.get_user_profile(user_id)
-    return {"profile": profile, "onboarding_completed": bool(profile.get("onboarding_completed"))}
+    return {
+        "profile": profile,
+        "onboarding_completed": bool(profile.get("onboarding_completed")),
+    }
 
 
 @router.put("")
-async def update_profile(req: ProfileUpdateRequest, user_id: str = Depends(get_current_user)):
+async def update_profile(
+    req: ProfileUpdateRequest, user_id: str = Depends(get_current_user)
+):
     """更新画像字段（只更新提供的字段，其余保留原值）"""
     existing = await db.get_user_profile(user_id) or {}
 
-    nickname = req.nickname if req.nickname is not None else existing.get("nickname", "投资者")
+    nickname = (
+        req.nickname if req.nickname is not None else existing.get("nickname", "投资者")
+    )
     avatar = req.avatar if req.avatar is not None else existing.get("avatar", "blue")
-    risk_level = req.risk_level if req.risk_level is not None else existing.get("risk_level", "balanced")
-    risk_score = req.risk_score if req.risk_score is not None else existing.get("risk_score", 0)
-    completed = req.onboarding_completed if req.onboarding_completed is not None else existing.get("onboarding_completed", 1)
+    risk_level = (
+        req.risk_level
+        if req.risk_level is not None
+        else existing.get("risk_level", "balanced")
+    )
+    risk_score = (
+        req.risk_score if req.risk_score is not None else existing.get("risk_score", 0)
+    )
+    completed = (
+        req.onboarding_completed
+        if req.onboarding_completed is not None
+        else existing.get("onboarding_completed", 1)
+    )
 
     if risk_level not in _RISK_LABELS:
         risk_level = "balanced"
 
     await db.save_user_profile(
-        user_id, nickname=nickname, avatar=avatar,
-        risk_level=risk_level, risk_score=int(risk_score),
+        user_id,
+        nickname=nickname,
+        avatar=avatar,
+        risk_level=risk_level,
+        risk_score=int(risk_score),
         onboarding_completed=int(bool(completed)),
     )
     return {"success": True}
@@ -195,7 +220,9 @@ async def get_risk_questions(user_id: str = Depends(get_current_user)):
 
 
 @router.post("/risk-assessment")
-async def submit_risk_assessment(req: RiskAssessmentRequest, user_id: str = Depends(get_current_user)):
+async def submit_risk_assessment(
+    req: RiskAssessmentRequest, user_id: str = Depends(get_current_user)
+):
     """提交风险评估答案，返回风险得分与等级（确定性打分）"""
     total = 0
     for q in RISK_QUESTIONS:

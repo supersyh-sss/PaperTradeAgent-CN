@@ -8,12 +8,14 @@
 [English](README.md) · [简体中文](README.zh-CN.md)
 
 ![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat\&logo=python\&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.141-009688?style=flat\&logo=fastapi\&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-blue?style=flat\&logo=fastapi\&logoColor=white)
 ![LangGraph](https://img.shields.io/badge/LangGraph-1.x-1C3C3C?style=flat\&logo=langchain\&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?style=flat\&logo=react\&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?style=flat\&logo=typescript\&logoColor=white)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=flat\&logo=tailwindcss\&logoColor=white)
 ![DeepSeek](https://img.shields.io/badge/LLM-DeepSeek-4D6BFE?style=flat)
+![CI](https://img.shields.io/github/actions/workflow/status/supersyh-sss/PaperTradeAgent-CN/test.yml?branch=master\&label=CI\&logo=github)
+![Docker](https://img.shields.io/badge/Docker-compose%20ready-2496ED?style=flat\&logo=docker\&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-green?style=flat)
 
 *Keywords:* *`multi-agent`* *·* *`AI Agent`* *·* *`LLM`* *·* *`LangGraph`* *·* *`paper trading`* *·* *`simulated trading`* *·* *`A-share`* *·* *`quantitative analysis`* *·* *`RAG`* *·* *`robo-advisor`* *·* *`financial education`* *·* *`risk control`* *·* *`open source`* *·* *`full-stack`*
@@ -109,6 +111,19 @@ npm run dev
 
 Open <http://localhost:5173> in your browser to get started.
 
+### 6. One-Command Start with Docker (optional)
+
+No local Python / Node install needed — build and run both containers (nginx reverse-proxies `/api` to the backend, so REST and SSE work with no CORS setup):
+
+```bash
+docker compose up --build
+```
+
+- Frontend: <http://localhost:5173>
+- Backend API docs: <http://localhost:8001/docs>
+
+Secrets such as `DEEPSEEK_API_KEY` are injected from `.env` via `env_file` and are **never baked into the image**; SQLite data, K-line caches, and the embedding model cache are persisted through named volumes. See `Dockerfile` / `docker-compose.yml`.
+
 ## Architecture
 
 <p align="center">
@@ -183,12 +198,25 @@ The LLM agents run inside a harness that turns non-deterministic model output in
 | Backend  | FastAPI + LangGraph + SSE                                           |
 | LLM      | DeepSeek API (flash / pro models)                                   |
 | Data     | Tencent Finance API; 东方财富 / 财联社 / 新浪 (news) + DuckDuckGo web search |
-| Database | SQLite (aiosqlite, WAL)                                             |
+| Database | SQLite (aiosqlite, WAL, versioned migrations)                        |
 | Cache    | TTLCache + JSON files (K-line) + in-memory poller (quotes)          |
 | Frontend | React 19 + TypeScript + Tailwind CSS 4 + Vite                       |
 | Charts   | ECharts (K-line + MA + B/S + volume)                                |
 | State    | Zustand                                                             |
-| QA       | pytest + pytest-asyncio + ruff + GitHub Actions CI                  |
+| QA       | pytest + pytest-asyncio + coverage gate (backend); oxlint + strict tsc, 0 warnings (frontend) |
+| DevEx     | GitHub Actions CI (lint / format / tests / frontend build) + pre-commit + uv lockfile |
+| Container | Multi-stage Docker builds (backend / frontend) + docker compose (nginx reverse proxy for `/api`) |
+
+## Engineering & Quality
+
+1. **CI gates** — on push/PR to `master`/`main`, GitHub Actions runs backend lint (ruff), format check (`ruff format --check`), the full pytest suite, frontend lint (oxlint), and type-check + build (tsc + vite). `make check` / `make build-fe` reproduce the same gates locally.
+2. **One formatter** — `ruff format` is the single formatting baseline; every rule ignore in `pyproject.toml` documents its reason (A-share China-timezone semantics, LLM defensive fallbacks, etc.).
+3. **Locked deps + hooks** — `uv` + `uv.lock` pin the environment; `pre-commit` blocks lint/format/debug-print issues before each commit.
+4. **Observability** — JSON structured logs, end-to-end trace IDs, `/api/health`; per-agent latency/token/status are persisted and reviewable in the observability panel.
+5. **Data consistency** — balance/position/trade settlement runs as a single `BEGIN IMMEDIATE` transaction with conditional updates and rollback, preventing double-spend and half-written states; SQLite runs in WAL mode.
+6. **Containerized delivery** — multi-stage Dockerfiles for both sides; nginx proxies `/api` (proxy buffering disabled for SSE); `docker compose up --build` brings up the whole stack.
+7. **Versioned DB migrations** — `backend/database/migrations.py` turns every schema change into an immutable version tracked in `schema_migrations`; each version commits atomically with its record (no "DDL applied but not recorded" states). Legacy DBs, fresh clones, and CI temp DBs all converge to the same schema (dedicated tests).
+8. **Coverage gate** — `--cov-fail-under` is baked into `pyproject.toml` (current baseline 24.5%), so it runs on every local `pytest`, not just CI; trading-rule core (fees / price limits / T+1 / auction / trading days) hits 74–100% targeted coverage and caught a real cross-platform bug: `strftime` with CJK text crashes under non-Chinese Windows locales.
 
 ## Trading Rules
 
@@ -209,7 +237,7 @@ See [docs/PLAN.md](docs/PLAN.md) for optimization and extension suggestions grou
 1. **Scheduler extension** — cron expressions, trading-calendar-aware triggers, writing scheduled results back to the conversation, and reusable task templates.
 2. **Persistent monitoring optimization** — richer monitoring dimensions, quantified batch plans, a confirm-then-execute loop, and backtest-style review.
 3. **Complex buy/sell strategies** — strategy templates, layered trade plans, state-machine-driven staged execution, and scheduler coordination.
-4. **Engineering finish-up** — containerization, database migration, and API versioning/pagination.
+4. **Engineering evolution** — API versioning/pagination, frontend tests, and LLM-call recording & replay tests.
 
 ## Disclaimer
 

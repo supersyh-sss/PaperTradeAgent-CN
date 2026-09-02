@@ -81,6 +81,8 @@ export interface ActiveOrder {
 
 export interface PortfolioData {
   balance: number;
+  locked_balance: number;
+  available_balance: number;
   total_market_value: number;
   total_cost: number;
   total_pnl: number;
@@ -97,6 +99,9 @@ export interface Position {
   quantity: number;
   sellable_quantity: number;
   t1_quantity: number;
+  locked_shares: number;
+  tradable_quantity: number;
+  total_cost: number;
   avg_cost: number;
   current_price: number;
   market_value: number;

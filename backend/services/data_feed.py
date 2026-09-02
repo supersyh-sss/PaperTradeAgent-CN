@@ -14,6 +14,7 @@
   async for update in feed.subscribe(user_id, symbols=["sh600519"]):
       ...
 """
+
 import asyncio
 import logging
 from collections.abc import AsyncGenerator
@@ -29,6 +30,7 @@ BJT = timezone(timedelta(hours=8))
 
 class DataSnapshot:
     """一次数据快照 — 所有 Agent 共享的统一视图"""
+
     __slots__ = (
         "account",
         "active_orders",
@@ -59,7 +61,9 @@ class DataSnapshot:
         if self.account:
             avail = self.account.get("balance", 0)
             total = self.account.get("total_assets", 0)
-            parts.append(f"账户: 可用{avail:.2f}, 总资产{total:.2f} [来源:{self.data_sources.get('account','?')}]")
+            parts.append(
+                f"账户: 可用{avail:.2f}, 总资产{total:.2f} [来源:{self.data_sources.get('account', '?')}]"
+            )
 
         if self.positions:
             lines = []
@@ -73,35 +77,58 @@ class DataSnapshot:
                 cur = live.get("last_price") or p.get("latest_price", 0)
                 pnl = (cur - cost) * qty if cur and cost else 0
                 pnl_pct = ((cur - cost) / cost * 100) if cost else 0
-                lines.append(f"  {name}({sym}) 持仓{qty}股 成本{cost:.2f} 现价{cur:.2f} 盈亏{pnl:+.2f}({pnl_pct:+.1f}%)")
-            parts.append("持仓 [" + self.data_sources.get("positions", "?") + "]:\n" + "\n".join(lines))
+                lines.append(
+                    f"  {name}({sym}) 持仓{qty}股 成本{cost:.2f} 现价{cur:.2f} 盈亏{pnl:+.2f}({pnl_pct:+.1f}%)"
+                )
+            parts.append(
+                "持仓 ["
+                + self.data_sources.get("positions", "?")
+                + "]:\n"
+                + "\n".join(lines)
+            )
         else:
             parts.append("持仓: 空仓")
 
         if self.active_orders:
-            parts.append("活跃订单: " + " | ".join(
-                f"{'买' if o.get('side')=='buy' else '卖'}{o.get('symbol','')} {o.get('price',0)}x{o.get('quantity',0)}"
-                for o in self.active_orders[:5]
-            ))
+            parts.append(
+                "活跃订单: "
+                + " | ".join(
+                    f"{'买' if o.get('side') == 'buy' else '卖'}{o.get('symbol', '')} {o.get('price', 0)}x{o.get('quantity', 0)}"
+                    for o in self.active_orders[:5]
+                )
+            )
 
         if self.watchlist:
-            parts.append("自选: " + " | ".join(
-                f"{w.get('name','')}({w.get('symbol','')})" for w in self.watchlist[:10]
-            ))
-        
+            parts.append(
+                "自选: "
+                + " | ".join(
+                    f"{w.get('name', '')}({w.get('symbol', '')})"
+                    for w in self.watchlist[:10]
+                )
+            )
+
         # Add live prices for watchlist/positions
         if self.live_prices:
             price_lines = []
             for sym, info in list(self.live_prices.items())[:10]:
-                price_lines.append(f"  {sym}: {info.get('last_price','-')} (涨跌{info.get('change_pct','-')}%)")
+                price_lines.append(
+                    f"  {sym}: {info.get('last_price', '-')} (涨跌{info.get('change_pct', '-')}%)"
+                )
             if price_lines:
-                parts.append("实时行情 [来源:" + self.data_sources.get("prices", "?") + "]:\n" + "\n".join(price_lines))
+                parts.append(
+                    "实时行情 [来源:"
+                    + self.data_sources.get("prices", "?")
+                    + "]:\n"
+                    + "\n".join(price_lines)
+                )
 
         # Add market indices
         if self.indices:
             idx_lines = []
             for code, info in self.indices.items():
-                idx_lines.append(f"  {info.get('name', code)}: {info.get('last_price','-')} ({info.get('change_pct',0):+.2f}%)")
+                idx_lines.append(
+                    f"  {info.get('name', code)}: {info.get('last_price', '-')} ({info.get('change_pct', 0):+.2f}%)"
+                )
             if idx_lines:
                 parts.append("大盘指数:\n" + "\n".join(idx_lines))
 
@@ -171,6 +198,7 @@ class DataFeed:
         if include_prices:
             try:
                 from .live_prices import get_all_live_prices, get_index_overview
+
                 snap.indices = get_index_overview()
 
                 if snap.is_trading:
@@ -196,12 +224,16 @@ class DataFeed:
                                     snap.live_prices[sym] = price_data
                                     break
 
-                snap.data_sources["prices"] = "live_prices_cache" if snap.is_trading else "cached_indices_only"
+                snap.data_sources["prices"] = (
+                    "live_prices_cache" if snap.is_trading else "cached_indices_only"
+                )
             except Exception as e:
                 logger.warning(f"DataFeed: 实时价格获取失败: {e}")
                 snap.data_sources["prices"] = "unavailable"
         else:
-            snap.data_sources["prices"] = "skipped_non_trading" if not snap.is_trading else "skipped"
+            snap.data_sources["prices"] = (
+                "skipped_non_trading" if not snap.is_trading else "skipped"
+            )
 
         return snap
 
@@ -231,6 +263,7 @@ class DataFeed:
 
 
 # 便捷函数
+
 
 async def get_agent_context(user_id: str) -> str:
     """获取 Agent 注入上下文字符串（供 agent_chat_node 等使用）"""

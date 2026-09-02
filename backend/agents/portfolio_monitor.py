@@ -1,6 +1,7 @@
 """风控与持仓监控官 Agent"""
+
 import json as json_mod
-from datetime import date, datetime
+from datetime import datetime
 
 from ..services import db
 from ..services.agent_memory import (
@@ -10,7 +11,7 @@ from ..services.agent_memory import (
 )
 from ..services.data_source_manager import data_source_manager
 from ..services.llm import choose_client
-from ..services.position_service import compute_sellable
+from ..services.position_service import compute_sellable, today_bjt
 from .prompts import AGENT_PROFILES, PORTFOLIO_MONITOR_SYSTEM
 from .state import AgentState
 from .utils import maybe_attach_followup
@@ -67,7 +68,11 @@ async def portfolio_monitor_node(state: AgentState) -> AgentState:
                 stock_info = v
                 break
 
-        current_price = float(stock_info.get("price", pos.get("latest_price", 0))) if stock_info else float(pos.get("latest_price", 0))
+        current_price = (
+            float(stock_info.get("price", pos.get("latest_price", 0)))
+            if stock_info
+            else float(pos.get("latest_price", 0))
+        )
         quantity = pos["quantity"]
         avg_cost = float(pos["avg_cost"])
         pos_total_cost = float(pos["total_cost"])
@@ -82,17 +87,19 @@ async def portfolio_monitor_node(state: AgentState) -> AgentState:
         # 更新价格
         await db.update_position_prices(user_id, symbol, current_price)
 
-        portfolio_data.append({
-            "symbol": symbol,
-            "name": pos["name"],
-            "quantity": quantity,
-            "avg_cost": round(avg_cost, 2),
-            "current_price": current_price,
-            "market_value": market_value,
-            "pnl": pnl,
-            "pnl_pct": pnl_pct,
-            "t1_restricted": t1_restricted,
-        })
+        portfolio_data.append(
+            {
+                "symbol": symbol,
+                "name": pos["name"],
+                "quantity": quantity,
+                "avg_cost": round(avg_cost, 2),
+                "current_price": current_price,
+                "market_value": market_value,
+                "pnl": pnl,
+                "pnl_pct": pnl_pct,
+                "t1_restricted": t1_restricted,
+            }
+        )
 
         total_market_value += market_value
         total_cost += pos_total_cost
@@ -107,11 +114,25 @@ async def portfolio_monitor_node(state: AgentState) -> AgentState:
     # 检查是否需要策略建议
     advice = []
     if total_pnl_pct < -10:
-        advice.append({"action": "REVIEW", "reason": f"总亏损 {total_pnl_pct}%，超过10%，建议审视持仓"})
+        advice.append(
+            {
+                "action": "REVIEW",
+                "reason": f"总亏损 {total_pnl_pct}%，超过10%，建议审视持仓",
+            }
+        )
     if portfolio_data:
-        max_pct = max(p["market_value"] / total_market_value * 100 for p in portfolio_data) if total_market_value > 0 else 0
+        max_pct = (
+            max(p["market_value"] / total_market_value * 100 for p in portfolio_data)
+            if total_market_value > 0
+            else 0
+        )
         if max_pct > 50:
-            advice.append({"action": "REDUCE", "reason": f"单股集中度 {max_pct:.1f}%，建议分散风险"})
+            advice.append(
+                {
+                    "action": "REDUCE",
+                    "reason": f"单股集中度 {max_pct:.1f}%，建议分散风险",
+                }
+            )
 
     summary = {
         "balance": round(balance, 2),
@@ -127,11 +148,16 @@ async def portfolio_monitor_node(state: AgentState) -> AgentState:
 
     state["portfolio_summary"] = summary
 
-    # 保存快照
-    today = date.today().isoformat()
+    # 保存快照（统一北京时间，保证与 T+1 冻结/交易结算的"日"一致）
+    today = today_bjt()
     await db.save_portfolio_snapshot(
-        user_id, today, round(total_market_value, 2),
-        round(total_cost, 2), total_pnl, total_pnl_pct, len(portfolio_data)
+        user_id,
+        today,
+        round(total_market_value, 2),
+        round(total_cost, 2),
+        total_pnl,
+        total_pnl_pct,
+        len(portfolio_data),
     )
 
     # 更新账户总资产
@@ -145,7 +171,9 @@ async def portfolio_monitor_node(state: AgentState) -> AgentState:
         agent_key = "portfolio_monitor"
         query_hash = compute_query_hash(user_input, agent_key, "portfolio")
 
-        cached = await get_agent_memory(user_id, agent_key, "portfolio", query_hash, query=user_input)
+        cached = await get_agent_memory(
+            user_id, agent_key, "portfolio", query_hash, query=user_input
+        )
         llm_result = None
         if cached:
             try:
@@ -156,7 +184,9 @@ async def portfolio_monitor_node(state: AgentState) -> AgentState:
         if not cached:
             portfolio_text = _build_portfolio_summary(summary)
             current_time = state.get("current_time", "")
-            time_prefix = f"Current system time: {current_time}\n\n" if current_time else ""
+            time_prefix = (
+                f"Current system time: {current_time}\n\n" if current_time else ""
+            )
             ctx_lines = [f"User asked: {user_input}"]
             history_summary = state.get("history_summary", "")
             strategy = state.get("strategy_direction", "")
@@ -169,14 +199,19 @@ async def portfolio_monitor_node(state: AgentState) -> AgentState:
                 {"role": "system", "content": PORTFOLIO_MONITOR_SYSTEM},
                 {"role": "user", "content": ctx_prefix + time_prefix + portfolio_text},
             ]
-            llm_result = await choose_client(True).chat_json(messages, temperature=0.1, max_tokens=1024)
+            llm_result = await choose_client(True).chat_json(
+                messages, temperature=0.1, max_tokens=1024
+            )
             if llm_result.get("parse_error"):
                 raise ValueError("LLM returned non-JSON")
 
             await save_agent_memory(
-                user_id, agent_key, "portfolio",
-                query_hash, json_mod.dumps(llm_result, ensure_ascii=False, default=str),
-                query=user_input
+                user_id,
+                agent_key,
+                "portfolio",
+                query_hash,
+                json_mod.dumps(llm_result, ensure_ascii=False, default=str),
+                query=user_input,
             )
 
         state["portfolio_assessment"] = llm_result
@@ -189,11 +224,23 @@ async def portfolio_monitor_node(state: AgentState) -> AgentState:
     balance = summary.get("balance", 0)
     total_assets = summary.get("total_assets", 0)
     total_market_value = summary.get("total_market_value", 0)
-    position_ratio = (total_market_value / total_assets * 100) if total_assets > 0 else 0
-    position_label = "满仓" if position_ratio > 95 else "重仓" if position_ratio > 70 else "半仓" if position_ratio > 30 else "轻仓"
-    
+    position_ratio = (
+        (total_market_value / total_assets * 100) if total_assets > 0 else 0
+    )
+    position_label = (
+        "满仓"
+        if position_ratio > 95
+        else "重仓"
+        if position_ratio > 70
+        else "半仓"
+        if position_ratio > 30
+        else "轻仓"
+    )
+
     pnl_emoji = "📈" if total_pnl > 0 else "📉" if total_pnl < 0 else ""
-    lines.append(f"总资产 {total_assets:,.2f}，{position_label}（{position_ratio:.0f}%），{pnl_emoji}累计{total_pnl:+,.2f}（{total_pnl_pct:+.2f}%）")
+    lines.append(
+        f"总资产 {total_assets:,.2f}，{position_label}（{position_ratio:.0f}%），{pnl_emoji}累计{total_pnl:+,.2f}（{total_pnl_pct:+.2f}%）"
+    )
 
     if portfolio_data:
         lines.append("持仓：")
@@ -202,21 +249,37 @@ async def portfolio_monitor_node(state: AgentState) -> AgentState:
         _limit = 20 if _show_all else 5
         for pd_item in portfolio_data[:_limit]:
             t1_flag = " [T+1]" if pd_item.get("t1_restricted") else ""
-            pnl_sign = "+" if pd_item['pnl'] >= 0 else ""
-            lines.append(f"  {pd_item.get('name', '')}{t1_flag} {pd_item.get('quantity', 0)}股 现价{pd_item.get('current_price', 0)} 盈亏{pnl_sign}{pd_item['pnl']:,.2f}")
+            pnl_sign = "+" if pd_item["pnl"] >= 0 else ""
+            lines.append(
+                f"  {pd_item.get('name', '')}{t1_flag} {pd_item.get('quantity', 0)}股 现价{pd_item.get('current_price', 0)} 盈亏{pnl_sign}{pd_item['pnl']:,.2f}"
+            )
         if len(portfolio_data) > _limit:
-            lines.append(f"  … 其余 {len(portfolio_data) - _limit} 只持仓（回复「查看其余持仓」继续展示）")
+            lines.append(
+                f"  … 其余 {len(portfolio_data) - _limit} 只持仓（回复「查看其余持仓」继续展示）"
+            )
 
     if llm_result:
         health = llm_result.get("portfolio_health", "")
         concentration = llm_result.get("concentration_risk", "")
         # Fallback: compute concentration locally if LLM didn't provide it
         if not concentration and portfolio_data and total_market_value > 0:
-            max_pct = max(p["market_value"] / total_market_value * 100 for p in portfolio_data)
-            top_name = max(portfolio_data, key=lambda p: p["market_value"]).get("name", "")
-            concentration = "分散" if max_pct < 40 else f"{max_pct:.0f}%集中在{top_name}"
+            max_pct = max(
+                p["market_value"] / total_market_value * 100 for p in portfolio_data
+            )
+            top_name = max(portfolio_data, key=lambda p: p["market_value"]).get(
+                "name", ""
+            )
+            concentration = (
+                "分散" if max_pct < 40 else f"{max_pct:.0f}%集中在{top_name}"
+            )
         if health or concentration:
-            health_cn = "健康" if health == "HEALTHY" else "需关注" if health == "CAUTION" else health or "正常"
+            health_cn = (
+                "健康"
+                if health == "HEALTHY"
+                else "需关注"
+                if health == "CAUTION"
+                else health or "正常"
+            )
             lines.append(f"评估：{health_cn}，集中度{concentration}")
         flags = llm_result.get("risk_flags_chinese", [])
         if flags:

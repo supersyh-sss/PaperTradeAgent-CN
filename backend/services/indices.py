@@ -1,4 +1,5 @@
 """大盘指数数据服务 - 上证/深证/创业板/科创50/沪深300"""
+
 from datetime import datetime, timedelta, timezone
 
 BJT = timezone(timedelta(hours=8))

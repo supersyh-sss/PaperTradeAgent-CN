@@ -15,13 +15,16 @@ from .quant_signals import compute_atr
 logger = __import__("logging").getLogger(__name__)
 
 
-async def _fetch_minute_kline(symbol: str, period: str = "m5", count: int = 96) -> list | None:
+async def _fetch_minute_kline(
+    symbol: str, period: str = "m5", count: int = 96
+) -> list | None:
     """获取分钟级 K 线（带周期感知的文件缓存，避免污染日线缓存）。"""
     cached = get_cached_kline(symbol, period, days=count)
     if cached:
         return cached
     try:
         from .tencent_api import tencent_api
+
         data = await tencent_api.get_kline(symbol, period, count)
         if data:
             save_kline_to_cache(symbol, period, data)
@@ -45,7 +48,9 @@ async def predict_short_term(symbol: str, current_price: float, side: str) -> di
         "horizon": "short",
         "horizon_label": "短线（3-5分钟）",
         "current_price": current_price,
-        "predicted_price": round(current_price * (1 + default_dev if side == "BUY" else 1 - default_dev), 3),
+        "predicted_price": round(
+            current_price * (1 + default_dev if side == "BUY" else 1 - default_dev), 3
+        ),
         "deviation_pct": default_dev * 100,
         "band": None,
         "note": "短线预测：基于分钟级动量",
@@ -63,7 +68,11 @@ async def predict_short_term(symbol: str, current_price: float, side: str) -> di
 
     # 近 5 根 5 分钟 K 线的动量（对当前价归一化）
     lookback = min(5, len(closes) - 1)
-    momentum = (closes[-1] - closes[-1 - lookback]) / closes[-1 - lookback] if closes[-1 - lookback] else 0.0
+    momentum = (
+        (closes[-1] - closes[-1 - lookback]) / closes[-1 - lookback]
+        if closes[-1 - lookback]
+        else 0.0
+    )
 
     # 分钟级 ATR 百分比
     s_close = pd.Series(closes)
@@ -83,28 +92,36 @@ async def predict_short_term(symbol: str, current_price: float, side: str) -> di
     else:
         deviation = _clamp(base - momentum_adj + atr_adj, 0.0015, 0.009)
 
-    predicted = round(current_price * (1 + deviation if side == "BUY" else 1 - deviation), 3)
+    predicted = round(
+        current_price * (1 + deviation if side == "BUY" else 1 - deviation), 3
+    )
     # 给一个 3-5 分钟的预测区间（正负 0.15%）
-    band = [round(current_price * (1 - 0.0015), 3), round(current_price * (1 + 0.0015), 3)]
+    band = [
+        round(current_price * (1 - 0.0015), 3),
+        round(current_price * (1 + 0.0015), 3),
+    ]
 
-    result.update({
-        "predicted_price": predicted,
-        "deviation_pct": round(deviation * 100, 3),
-        "band": band,
-        "confidence": round(_clamp(0.5 + abs(momentum) * 30, 0.3, 0.85), 2),
-        "momentum": round(momentum * 100, 3),
-        "atr_pct": round(atr_pct * 100, 3),
-        "note": (
-            f"短线3-5分钟预测：近{lookback}根5分钟K线动量{'+' if momentum >= 0 else ''}{momentum * 100:.2f}%，"
-            f"ATR {atr_pct * 100:.2f}%，{'买入' if side == 'BUY' else '卖出'}目标价 {predicted} "
-            f"（偏差{deviation * 100:.2f}%，兼顾可成交与不过度追价）"
-        ),
-    })
+    result.update(
+        {
+            "predicted_price": predicted,
+            "deviation_pct": round(deviation * 100, 3),
+            "band": band,
+            "confidence": round(_clamp(0.5 + abs(momentum) * 30, 0.3, 0.85), 2),
+            "momentum": round(momentum * 100, 3),
+            "atr_pct": round(atr_pct * 100, 3),
+            "note": (
+                f"短线3-5分钟预测：近{lookback}根5分钟K线动量{'+' if momentum >= 0 else ''}{momentum * 100:.2f}%，"
+                f"ATR {atr_pct * 100:.2f}%，{'买入' if side == 'BUY' else '卖出'}目标价 {predicted} "
+                f"（偏差{deviation * 100:.2f}%，兼顾可成交与不过度追价）"
+            ),
+        }
+    )
     return result
 
 
-async def predict_medium_long_term(symbol: str, current_price: float, side: str,
-                                   tech: dict, horizon: str) -> dict:
+async def predict_medium_long_term(
+    symbol: str, current_price: float, side: str, tech: dict, horizon: str
+) -> dict:
     """中长线目标价：日/月/年级别，趋势 + 支撑阻力 + ATR 稳健估算。
 
     horizon: "medium"（日/周）| "long"（月/年）。
@@ -134,7 +151,11 @@ async def predict_medium_long_term(symbol: str, current_price: float, side: str,
 
     # 支撑/阻力取最近一层（列表可能是 [近, 中, 远]）
     sup = support[0] if isinstance(support, list) and support else (support or 0)
-    res = resistance[-1] if isinstance(resistance, list) and resistance else (resistance or 0)
+    res = (
+        resistance[-1]
+        if isinstance(resistance, list) and resistance
+        else (resistance or 0)
+    )
 
     if side == "BUY":
         # 买入：趋势回调时挂支撑位附近，趋势向上时小幅溢价
@@ -158,14 +179,16 @@ async def predict_medium_long_term(symbol: str, current_price: float, side: str,
         predicted = round(_clamp(target, current_price * 0.98, current_price * 1.03), 3)
 
     deviation = (predicted - current_price) / current_price if current_price else 0.0
-    result.update({
-        "predicted_price": predicted,
-        "deviation_pct": round(deviation * 100, 3),
-        "support": sup,
-        "resistance": res,
-        "note": (
-            f"{label}预测：趋势{trend}，支撑{sup} / 阻力{res}，"
-            f"{'买入' if side == 'BUY' else '卖出'}目标价 {predicted}（偏差{deviation * 100:.2f}%）"
-        ),
-    })
+    result.update(
+        {
+            "predicted_price": predicted,
+            "deviation_pct": round(deviation * 100, 3),
+            "support": sup,
+            "resistance": res,
+            "note": (
+                f"{label}预测：趋势{trend}，支撑{sup} / 阻力{res}，"
+                f"{'买入' if side == 'BUY' else '卖出'}目标价 {predicted}（偏差{deviation * 100:.2f}%）"
+            ),
+        }
+    )
     return result

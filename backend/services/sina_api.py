@@ -1,4 +1,5 @@
 """新浪财经API - 备用数据源"""
+
 import re
 
 import httpx
@@ -60,10 +61,16 @@ class SinaFinanceAPI:
                 "open": self._safe_float(fields, 1),
                 "high": self._safe_float(fields, 4),
                 "low": self._safe_float(fields, 5),
-                "volume": self._safe_float(fields, 8) / 100 if self._safe_float(fields, 8) else 0,  # 股->手
-                "amount": round(self._safe_float(fields, 9) / 10000, 2) if self._safe_float(fields, 9) else 0,
+                "volume": self._safe_float(fields, 8) / 100
+                if self._safe_float(fields, 8)
+                else 0,  # 股->手
+                "amount": round(self._safe_float(fields, 9) / 10000, 2)
+                if self._safe_float(fields, 9)
+                else 0,
                 "change": round(price - prev_close, 2) if price else 0,
-                "change_pct": round((price / prev_close - 1) * 100, 2) if prev_close else 0,
+                "change_pct": round((price / prev_close - 1) * 100, 2)
+                if prev_close
+                else 0,
                 "source": "sina",
             }
         return results

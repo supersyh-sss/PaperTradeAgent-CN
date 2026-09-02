@@ -35,18 +35,20 @@ logger = logging.getLogger(__name__)
 
 class ExecutionPhase(Enum):
     """执行阶段"""
-    INIT = auto()           # 初始化
-    READ = auto()           # 感知：上下文注入
-    PLAN = auto()           # 规划：意图识别/任务拆解
-    EXEC = auto()           # 执行：Agent 节点运行
-    REFLECT = auto()        # 反思：结果校验/降级
-    FEEDBACK = auto()       # 反馈：结构化返回
-    TERMINATED = auto()     # 终止
+
+    INIT = auto()  # 初始化
+    READ = auto()  # 感知：上下文注入
+    PLAN = auto()  # 规划：意图识别/任务拆解
+    EXEC = auto()  # 执行：Agent 节点运行
+    REFLECT = auto()  # 反思：结果校验/降级
+    FEEDBACK = auto()  # 反馈：结构化返回
+    TERMINATED = auto()  # 终止
 
 
 @dataclass
 class CycleResult:
     """一次 REPL 循环的结果"""
+
     phase: ExecutionPhase
     success: bool
     data: dict[str, Any] = field(default_factory=dict)
@@ -96,8 +98,11 @@ class HarnessREPL:
     # ── Read Phase (感知管控) ──
 
     def read(
-        self, state: dict[str, Any], system_prompt: str = "",
-        history_summary: str | None = None, recent_messages: list[dict] | None = None,
+        self,
+        state: dict[str, Any],
+        system_prompt: str = "",
+        history_summary: str | None = None,
+        recent_messages: list[dict] | None = None,
     ) -> str:
         """Read 阶段：结构化注入上下文，标准化 Agent 信息输入"""
         phase_start = time.time()
@@ -146,8 +151,8 @@ class HarnessREPL:
         self._metrics.record(MetricType.CONTEXT_SIZE, len(context) // 2)
 
         logger.info(
-            f"[REPL:READ] Context assembled: ~{len(context)} chars, ~{len(context)//2} tokens, "
-            f"latency {(time.time()-phase_start)*1000:.0f}ms"
+            f"[REPL:READ] Context assembled: ~{len(context)} chars, ~{len(context) // 2} tokens, "
+            f"latency {(time.time() - phase_start) * 1000:.0f}ms"
         )
         return context
 
@@ -165,20 +170,27 @@ class HarnessREPL:
     ) -> CycleResult:
         """Eval 阶段：捕获工具调用意图，合规校验 + 路由分发 + 异常监控"""
         phase_start = time.time()
-        
+
         # 安全门控
         if permissions_check:
             perm = self._safety.check_operation(permissions_check, user_id)
             if not perm.allowed:
-                AuditLogger.log("eval_blocked", {
-                    "agent": agent_name, "operation": permissions_check, "reason": perm.reason
-                }, user_id)
+                AuditLogger.log(
+                    "eval_blocked",
+                    {
+                        "agent": agent_name,
+                        "operation": permissions_check,
+                        "reason": perm.reason,
+                    },
+                    user_id,
+                )
                 return CycleResult(
                     phase=ExecutionPhase.EXEC,
                     success=False,
                     errors=[f"Permission denied: {perm.reason}"],
                     feedback=self._feedback.error(
-                        agent_name, ExecutionPhase.EXEC.name,
+                        agent_name,
+                        ExecutionPhase.EXEC.name,
                         errors=[f"Permission denied: {perm.reason}"],
                         suggestions=["Check user permissions"],
                     ),
@@ -194,25 +206,34 @@ class HarnessREPL:
         feedback = None
         if intercept.success:
             feedback = self._feedback.success(
-                agent_name, ExecutionPhase.EXEC.name,
-                "OK", data=intercept.data,
-                metrics={"retries": intercept.retries, "latency_ms": intercept.latency_ms},
+                agent_name,
+                ExecutionPhase.EXEC.name,
+                "OK",
+                data=intercept.data,
+                metrics={
+                    "retries": intercept.retries,
+                    "latency_ms": intercept.latency_ms,
+                },
             )
         elif intercept.fallback_used:
             feedback = self._feedback.warning(
-                agent_name, ExecutionPhase.EXEC.name,
-                "Fallback used", intercept.errors, data=intercept.data,
+                agent_name,
+                ExecutionPhase.EXEC.name,
+                "Fallback used",
+                intercept.errors,
+                data=intercept.data,
             )
         else:
             feedback = self._feedback.error(
-                agent_name, ExecutionPhase.EXEC.name,
+                agent_name,
+                ExecutionPhase.EXEC.name,
                 intercept.errors,
                 suggestions=["Retry with simplified prompt"],
                 fallback_data=intercept.data,
             )
 
         self._metrics.record(MetricType.FIRST_RESPONSE_LATENCY)
-        
+
         return CycleResult(
             phase=ExecutionPhase.EXEC,
             success=intercept.success or intercept.fallback_used,
@@ -294,25 +315,30 @@ class HarnessREPL:
                 )
 
             # 执行 LangGraph / 异步函数
-            if hasattr(graph_or_fn, 'ainvoke'):
+            if hasattr(graph_or_fn, "ainvoke"):
                 # LangGraph StateGraph
                 result = await self._resilience.execute(
-                    graph_or_fn.ainvoke, state, breaker_name="langgraph",
+                    graph_or_fn.ainvoke,
+                    state,
+                    breaker_name="langgraph",
                 )
-            elif hasattr(graph_or_fn, 'astream'):
+            elif hasattr(graph_or_fn, "astream"):
                 # Streaming graph
                 result = dict(state)
                 async for chunk in graph_or_fn.astream(state):
                     for node_update in chunk.values():
                         for key, value in node_update.items():
-                            if key in ("agent_logs", "messages") and isinstance(value, list):
+                            if key in ("agent_logs", "messages") and isinstance(
+                                value, list
+                            ):
                                 result.setdefault(key, []).extend(value)
                             else:
                                 result[key] = value
             else:
                 # Plain async function
                 result = await self._resilience.execute(
-                    graph_or_fn, breaker_name="agent_fn",
+                    graph_or_fn,
+                    breaker_name="agent_fn",
                 )
 
             cycle_count += 1
@@ -334,7 +360,8 @@ class HarnessREPL:
 
             # ── Phase 6: FEEDBACK ──
             feedback_pkg = self._feedback.success(
-                "harness", ExecutionPhase.FEEDBACK.name,
+                "harness",
+                ExecutionPhase.FEEDBACK.name,
                 f"REPL cycle complete ({cycle_count} cycles)",
                 data={
                     "intent": result.get("intent"),
@@ -352,13 +379,14 @@ class HarnessREPL:
             logger.exception("REPL loop error")
             AuditLogger.log("repl_error", {"error": str(e)[:300]}, user_id)
             self._metrics.record(MetricType.LLM_CALL_ERROR, 1)
-            
+
             yield CycleResult(
                 phase=ExecutionPhase.TERMINATED,
                 success=False,
                 errors=[str(e)],
                 feedback=self._feedback.fatal(
-                    "harness", ExecutionPhase.EXEC.name,
+                    "harness",
+                    ExecutionPhase.EXEC.name,
                     errors=[f"REPL loop terminated: {e!s}"],
                 ),
             )
@@ -370,13 +398,13 @@ class HarnessREPL:
 
     async def run_graph_stream(
         self,
-        graph,                # LangGraph compiled graph
+        graph,  # LangGraph compiled graph
         state: dict[str, Any],
         user_id: str = "default",
         session_id: str = "",
     ) -> AsyncGenerator[dict[str, Any], None]:
         """带 Harness 管控的 LangGraph 流式执行
-        
+
         在 graph.astream 基础上增加：
           - 输入净化
           - 安全门控
@@ -384,7 +412,7 @@ class HarnessREPL:
           - 审计日志
         """
         self._metrics.start_session(session_id)
-        
+
         try:
             # 输入净化
             raw_input = state.get("user_input", "")
@@ -398,7 +426,9 @@ class HarnessREPL:
             async for chunk in graph.astream(state):
                 for node_name, node_update in chunk.items():
                     for key, value in node_update.items():
-                        if key in ("agent_logs", "messages") and isinstance(value, list):
+                        if key in ("agent_logs", "messages") and isinstance(
+                            value, list
+                        ):
                             accumulated.setdefault(key, []).extend(value)
                         else:
                             accumulated[key] = value
@@ -406,10 +436,14 @@ class HarnessREPL:
 
             # 度量记录
             self._metrics.record(MetricType.TASK_SUCCESS, 1)
-            AuditLogger.log("graph_complete", {
-                "intent": accumulated.get("intent"),
-                "agents": accumulated.get("needed_agents", []),
-            }, user_id)
+            AuditLogger.log(
+                "graph_complete",
+                {
+                    "intent": accumulated.get("intent"),
+                    "agents": accumulated.get("needed_agents", []),
+                },
+                user_id,
+            )
 
         except Exception as e:
             self._metrics.record(MetricType.LLM_CALL_ERROR, 1)

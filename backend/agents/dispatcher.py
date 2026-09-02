@@ -10,24 +10,36 @@ import time as _time
 from .state import AgentState
 
 # 可并行执行的 Agent 集合
-PARALLEL_AGENTS = frozenset({"quant_researcher", "market_intelligence", "portfolio_monitor"})
+PARALLEL_AGENTS = frozenset(
+    {"quant_researcher", "market_intelligence", "portfolio_monitor"}
+)
 
 
-def _schedule_trace(state: AgentState, agent_name: str, status: str, duration_ms: int, detail: str = "", token_used: int = 0) -> None:
+def _schedule_trace(
+    state: AgentState,
+    agent_name: str,
+    status: str,
+    duration_ms: int,
+    detail: str = "",
+    token_used: int = 0,
+) -> None:
     """异步落库 Agent 执行链路（L5 可观测性，非阻塞，失败静默）"""
     try:
         from ..services.db import record_agent_trace
-        asyncio.create_task(record_agent_trace(
-            trace_id=state.get("trace_id", ""),
-            agent=agent_name,
-            status=status,
-            duration_ms=duration_ms,
-            intent=state.get("intent", ""),
-            user_id=state.get("user_id", "default"),
-            conversation_id=state.get("conversation_id", ""),
-            detail=detail,
-            token_used=token_used,
-        ))
+
+        asyncio.create_task(
+            record_agent_trace(
+                trace_id=state.get("trace_id", ""),
+                agent=agent_name,
+                status=status,
+                duration_ms=duration_ms,
+                intent=state.get("intent", ""),
+                user_id=state.get("user_id", "default"),
+                conversation_id=state.get("conversation_id", ""),
+                detail=detail,
+                token_used=token_used,
+            )
+        )
     except Exception:
         pass
 
@@ -63,9 +75,12 @@ async def dispatch_parallel_agents(state: AgentState, agents: list[str]) -> Agen
     return state
 
 
-async def _traced_node(node_func, agent_state: AgentState, agent_name: str, state: AgentState):
+async def _traced_node(
+    node_func, agent_state: AgentState, agent_name: str, state: AgentState
+):
     """带计时与链路追踪的节点包装（L5：耗时 + token 逐 Agent 归集）"""
     from ..harness.metrics import MetricsCollector, current_agent
+
     start = _time.perf_counter()
     token = current_agent.set(agent_name)
     try:
@@ -77,7 +92,9 @@ async def _traced_node(node_func, agent_state: AgentState, agent_name: str, stat
     except Exception as e:
         duration_ms = int((_time.perf_counter() - start) * 1000)
         tokens = MetricsCollector().take_agent_token(agent_name)
-        _schedule_trace(state, agent_name, "failed", duration_ms, str(e)[:200], token_used=tokens)
+        _schedule_trace(
+            state, agent_name, "failed", duration_ms, str(e)[:200], token_used=tokens
+        )
         raise
     finally:
         current_agent.reset(token)

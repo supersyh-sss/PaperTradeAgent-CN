@@ -5,6 +5,7 @@ accuracy < 阈值时测试失败 → CI 失败，形成评估门禁。
 
 确定性、无网络/API 依赖，可在 GitHub Actions 中稳定运行。
 """
+
 import sys
 from pathlib import Path
 

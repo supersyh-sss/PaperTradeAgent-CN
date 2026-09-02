@@ -32,8 +32,25 @@ default = true
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.24.0",
+    "pytest-cov>=5.0.0",
     "ruff>=0.6.0",
+    "pre-commit>=3.5.0",
+    "pyyaml>=6.0",  # 配置文件的本地校验（CI 门禁不依赖）
 ]
+
+[tool.coverage.run]
+# 只统计业务代码（backend）；启动编排入口与外部 SDK 桥接不计入分母
+source = ["backend"]
+omit = [
+    "backend/main.py",
+    "backend/database/schema.sql",
+]
+
+[tool.coverage.report]
+# 只看代码行数少的模块，便于快速定位未覆盖文件
+show_missing = true
+skip_covered = true
+sort = "miss"
 
 [tool.ruff.lint]
 # 以下规则为本项目的刻意设计决策，予以豁免：
@@ -57,5 +74,13 @@ ignore = [
 testpaths = ["tests"]
 asyncio_mode = "auto"
 pythonpath = ["."]
+# 覆盖率门禁写在 pytest 里（而非 CI yaml）：任何人本地 `pytest` 也会被执行，
+# 阈值随仓库一起演进，无法通过绕过 CI 步骤的方式规避。
+# 来源与阈值策略见 README「工程化与质量保障」。
+addopts = [
+    "--cov",
+    "--cov-fail-under=22",
+    "--cov-report=term-missing:skip-covered",
+]
 
 [tool.uv.sources]

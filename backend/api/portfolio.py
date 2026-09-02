@@ -1,10 +1,15 @@
 """持仓查询 API"""
+
 from fastapi import APIRouter, Depends
 
 from ..middleware.error_handler import get_current_user
 from ..services import db
 from ..services.data_source_manager import data_source_manager
-from ..services.order_engine import get_active_orders
+from ..services.order_engine import (
+    get_active_orders,
+    get_locked_balance,
+    get_locked_shares,
+)
 from ..services.position_service import compute_sellable
 from ..services.symbol import pure_code
 
@@ -18,14 +23,20 @@ async def get_portfolio(user_id: str = Depends(get_current_user)):
 
     if not positions:
         account = await db.get_account(user_id)
+        balance = float(account["balance"]) if account else 0
         active_orders = get_active_orders(user_id) or []
         return {
-            "balance": float(account["balance"]) if account else 0,
+            "balance": round(balance, 2),
+            "locked_balance": round(get_locked_balance(user_id), 2),
+            "available_balance": round(
+                max(balance - get_locked_balance(user_id), 0), 2
+            ),
             "total_market_value": 0,
             "total_cost": 0,
             "total_pnl": 0,
             "total_pnl_pct": 0,
-            "total_assets": float(account["total_assets"]) if account else 0,
+            # 空仓时不再透传可能过期的 account.total_assets，直接等于现金
+            "total_assets": round(balance, 2),
             "positions": [],
             "position_count": 0,
             "active_orders": active_orders,
@@ -36,6 +47,7 @@ async def get_portfolio(user_id: str = Depends(get_current_user)):
     codes = [pure_code(p["symbol"]) for p in positions]
     prices: dict = {}
     from ..services.live_prices import get_cached_price
+
     for c in codes:
         cached = get_cached_price(c)
         if cached and cached.get("last_price"):
@@ -56,7 +68,11 @@ async def get_portfolio(user_id: str = Depends(get_current_user)):
         symbol = pure_code(pos["symbol"])
         stock_info = prices.get(symbol)
 
-        current_price = float(stock_info.get("price", pos.get("latest_price", 0))) if stock_info else float(pos.get("latest_price", 0))
+        current_price = (
+            float(stock_info.get("price", pos.get("latest_price", 0)))
+            if stock_info
+            else float(pos.get("latest_price", 0))
+        )
         quantity = pos["quantity"]
         pos_total_cost = float(pos["total_cost"])
         market_value = round(current_price * quantity, 2)
@@ -65,20 +81,26 @@ async def get_portfolio(user_id: str = Depends(get_current_user)):
 
         t1_quantity, sellable_quantity = compute_sellable(pos)
         t1_restricted = t1_quantity > 0
+        locked_shares = get_locked_shares(user_id, symbol)
 
-        portfolio_data.append({
-            "symbol": symbol,
-            "name": pos["name"],
-            "quantity": quantity,
-            "sellable_quantity": sellable_quantity,
-            "t1_quantity": t1_quantity,
-            "avg_cost": round(float(pos["avg_cost"]), 2),
-            "current_price": current_price,
-            "market_value": market_value,
-            "pnl": pnl,
-            "pnl_pct": pnl_pct,
-            "t1_restricted": t1_restricted,
-        })
+        portfolio_data.append(
+            {
+                "symbol": symbol,
+                "name": pos["name"],
+                "quantity": quantity,
+                "sellable_quantity": sellable_quantity,
+                "t1_quantity": t1_quantity,
+                "locked_shares": locked_shares,
+                "tradable_quantity": max(sellable_quantity - locked_shares, 0),
+                "avg_cost": round(float(pos["avg_cost"]), 2),
+                "total_cost": round(pos_total_cost, 2),
+                "current_price": current_price,
+                "market_value": market_value,
+                "pnl": pnl,
+                "pnl_pct": pnl_pct,
+                "t1_restricted": t1_restricted,
+            }
+        )
 
         total_market_value += market_value
         total_cost += pos_total_cost
@@ -91,9 +113,12 @@ async def get_portfolio(user_id: str = Depends(get_current_user)):
 
     # 获取活跃挂单
     active_orders = get_active_orders(user_id) or []
+    locked_balance = round(get_locked_balance(user_id), 2)
 
     return {
         "balance": round(balance, 2),
+        "locked_balance": locked_balance,
+        "available_balance": round(max(balance - locked_balance, 0), 2),
         "total_market_value": round(total_market_value, 2),
         "total_cost": round(total_cost, 2),
         "total_pnl": total_pnl,
@@ -106,7 +131,9 @@ async def get_portfolio(user_id: str = Depends(get_current_user)):
 
 
 @router.get("/history")
-async def get_portfolio_history(user_id: str = Depends(get_current_user), days: int = 30):
+async def get_portfolio_history(
+    user_id: str = Depends(get_current_user), days: int = 30
+):
     """获取持仓历史快照"""
     history = await db.get_portfolio_history(user_id, days)
     return {"history": history}

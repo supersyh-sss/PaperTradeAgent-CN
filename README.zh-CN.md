@@ -8,12 +8,14 @@
 [English](README.md) · [简体中文](README.zh-CN.md)
 
 ![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat&logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.141-009688?style=flat&logo=fastapi&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-blue?style=flat&logo=fastapi&logoColor=white)
 ![LangGraph](https://img.shields.io/badge/LangGraph-1.x-1C3C3C?style=flat&logo=langchain&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?style=flat&logo=react&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?style=flat&logo=typescript&logoColor=white)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=flat&logo=tailwindcss&logoColor=white)
 ![DeepSeek](https://img.shields.io/badge/LLM-DeepSeek-4D6BFE?style=flat)
+![CI](https://img.shields.io/github/actions/workflow/status/supersyh-sss/PaperTradeAgent-CN/test.yml?branch=master&label=CI&logo=github)
+![Docker](https://img.shields.io/badge/Docker-compose%20ready-2496ED?style=flat&logo=docker&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-green?style=flat)
 
 *关键词：`多智能体` · `Multi-Agent` · `AI Agent` · `大模型` · `LLM` · `LangGraph` · `模拟交易` · `纸面交易` · `A股` · `量化分析` · `RAG` · `智能投顾` · `投资者教育` · `风控` · `开源` · `全栈`*
@@ -109,6 +111,19 @@ npm run dev
 
 浏览器打开 <http://localhost:5173> 即可开始体验。
 
+### 6. Docker 一键启动（可选）
+
+无需本地安装 Python / Node 环境，构建并运行前后端两个容器（nginx 自动将 `/api` 反代到后端，REST 与 SSE 均无需跨域）：
+
+```bash
+docker compose up --build
+```
+
+- 前端：<http://localhost:5173>
+- 后端 API 文档：<http://localhost:8001/docs>
+
+`.env` 中的 `DEEPSEEK_API_KEY` 等机密通过 `env_file` 注入容器，**不会写进镜像**；SQLite 数据、K线缓存与向量模型缓存通过卷持久化到宿主机，重建容器不丢失。详见 `Dockerfile` / `docker-compose.yml`。
+
 ## 系统架构
 
 <p align="center">
@@ -183,12 +198,27 @@ LLM Agent 运行在 Harness 容器中，把不确定的模型推理接入确定�
 | 后端 | FastAPI + LangGraph + SSE |
 | LLM | DeepSeek API（flash / pro 模型） |
 | 数据源 | 腾讯财经 API；东方财富 / 财联社 / 新浪（新闻）+ DuckDuckGo 全网搜索 |
-| 数据库 | SQLite (aiosqlite, WAL) |
+| 数据库 | SQLite（aiosqlite + WAL + 版本化迁移） |
 | 缓存 | TTLCache + JSON 文件（K线）+ 内存轮询（行情） |
 | 前端 | React 19 + TypeScript + Tailwind CSS 4 + Vite |
 | 图表 | ECharts（K线 + MA + B/S + 成交量） |
 | 状态管理 | Zustand |
-| 测试 | pytest + pytest-asyncio + ruff + GitHub Actions CI |
+| 测试 | 后端 pytest + pytest-asyncio + 覆盖率门禁；前端 oxlint + tsc 严格类型检查（0 告警） |
+| 工程化 | GitHub Actions CI（lint / format / 单测 / 前端构建门禁）+ pre-commit + uv 依赖锁定 |
+| 容器化 | Docker 多阶段构建（后端 / 前端）+ docker compose 一键启动（nginx 反代 `/api`） |
+
+## 工程化与质量保障
+
+面向“可复用、可维护、可演进”的标准工程实践，而非一次性 Demo：
+
+1. **CI 提交门禁**：GitHub Actions 在 push/PR 到 `master`/`main` 时自动执行 后端 lint（ruff）→ 格式检查（ruff format）→ 全量单测（pytest）→ 前端 lint（oxlint）→ 类型检查与构建（tsc + vite）。本地执行 `make check` / `make build-fe` 可复现同一套门禁。
+2. **代码风格统一**：全仓库以 `ruff format` 为唯一格式基准；`pyproject.toml` 中每条规则豁免都注明原因（A 股东八区时区、LLM 兜底降级异常等刻意设计）。
+3. **依赖锁定与钩子**：`uv` + `uv.lock` 完全锁定环境，`pre-commit` 在提交前拦截 lint / 格式 / 调试语句问题。
+4. **可观测性**：JSON 结构化日志 + 全链路 Trace ID + `/api/health` 健康检查；Agent 级耗时、Token、状态全部持久化（`agent_traces`）并可在前端观测面板回查。
+5. **数据一致性**：余额/持仓/流水的结算写路径收敛在单事务（`BEGIN IMMEDIATE`）内完成读改写，配合条件更新、异常回滚与订单状态恢复，杜绝并发双花与“扣款成功但流水缺失”的中间态；SQLite 开启 WAL。
+6. **容器化交付**：后端/前端各一份多阶段 Dockerfile，nginx 反代 `/api`（SSE 已关闭代理缓冲），`docker compose up --build` 一键拉起整套环境。
+7. **版本化数据库迁移**：`backend/database/migrations.py` 把每次结构变更固化为不可变版本，`schema_migrations` 记录已应用版本；每个版本与其记录写入同一事务、失败自动回滚，杜绝“DDL 已生效但版本未记录”的中间态。旧库升级 / 全新库 / CI 临时库最终收敛到同一 schema（专项测试覆盖）。
+8. **覆盖率门禁**：`pytest` 内置 `--cov-fail-under`（当前基线 24.5%，随代码演进），写在 `pyproject.toml` 而非 CI yaml，本地执行也无法绕过；交易规则核心（费用计算 / 涨跌停 / T+1 / 集合竞价 / 交易日判定）定向覆盖 74%~100%，并借此修复了一处 Windows 非中文 locale 下 `strftime` 拼接中文抛 `UnicodeEncodeError` 的跨平台缺陷。
 
 ## 交易规则
 
@@ -209,7 +239,7 @@ LLM Agent 运行在 Harness 容器中，把不确定的模型推理接入确定�
 1. **定时任务扩展**：Cron 表达式、与交易日历联动、定时结果回写会话、任务模板与预设。
 2. **持久化监控优化**：监控维度扩充、分批计划的量化输出、建议确认执行闭环、回测式复盘。
 3. **复杂买入/卖出策略**：策略模板化、分层交易计划、状态机驱动分批执行、与定时任务协同。
-4. **工程化收尾**：容器化、数据库迁移、API 版本化/分页。
+4. **持续演进**：API 版本化/分页、前端测试补齐、LLM 调用录制回放（Replay）测试。
 
 ## 免责声明
 

@@ -1,4 +1,5 @@
 """量化研究员 Agent - 技术面分析"""
+
 import json as json_mod
 import logging
 from datetime import datetime
@@ -75,7 +76,9 @@ async def quant_researcher_node(state: AgentState) -> AgentState:
             # 盘中始终调用 LLM 获取最新分析，盘后/非交易时段优先使用缓存
             cached = None
             if not is_trading:
-                cached = await get_agent_memory(user_id, agent_key, symbol, query_hash, query=user_input)
+                cached = await get_agent_memory(
+                    user_id, agent_key, symbol, query_hash, query=user_input
+                )
 
             if cached and not is_trading:
                 try:
@@ -88,16 +91,21 @@ async def quant_researcher_node(state: AgentState) -> AgentState:
                 # A4：优先多轮工具编排，解析失败回退到预取数据单次调用
                 llm_result = await _quant_llm_with_tools(state, symbol, name)
                 if llm_result.get("parse_error"):
-                    llm_result = await _quant_llm_legacy(state, analysis, name or symbol)
+                    llm_result = await _quant_llm_legacy(
+                        state, analysis, name or symbol
+                    )
                 if llm_result.get("parse_error"):
                     raise ValueError("LLM returned non-JSON")
                 state["quant_assessment"] = llm_result
 
                 # 保存到 agent_memory
                 await save_agent_memory(
-                    user_id, agent_key, symbol,
-                    query_hash, json_mod.dumps(llm_result, ensure_ascii=False, default=str),
-                    query=user_input
+                    user_id,
+                    agent_key,
+                    symbol,
+                    query_hash,
+                    json_mod.dumps(llm_result, ensure_ascii=False, default=str),
+                    query=user_input,
                 )
         except Exception:
             state["quant_assessment"] = None
@@ -116,28 +124,38 @@ async def quant_researcher_node(state: AgentState) -> AgentState:
 
         # 简洁人格化输出：3-4行关键信息
         trend_emoji = "↗" if trend == "bullish" else "↘" if trend == "bearish" else "→"
-        trend_cn = "多头" if trend == "bullish" else "空头" if trend == "bearish" else "震荡"
-        
-        lines = [f"瞄了一眼{name or symbol}：现价{latest}，趋势{trend_emoji}{trend_cn}，RSI {rsi}，MACD {macd_sig}"]
-        
+        trend_cn = (
+            "多头" if trend == "bullish" else "空头" if trend == "bearish" else "震荡"
+        )
+
+        lines = [
+            f"瞄了一眼{name or symbol}：现价{latest}，趋势{trend_emoji}{trend_cn}，RSI {rsi}，MACD {macd_sig}"
+        ]
+
         # 关键均线信号
-        ma5, ma20, ma60 = ma.get('ma5'), ma.get('ma20'), ma.get('ma60')
+        ma5, ma20, ma60 = ma.get("ma5"), ma.get("ma20"), ma.get("ma60")
         if ma5 and ma20:
             if ma5 > ma20:
                 lines.append(f"MA5({ma5})在MA20({ma20})上方，短期偏强")
             else:
                 lines.append(f"MA5({ma5})在MA20({ma20})下方，短期偏弱")
         if ma60 and latest:
-            lines.append(f"距MA60({ma60})还有段距离，中期均线还是{'阻力' if latest < ma60 else '支撑'}")
+            lines.append(
+                f"距MA60({ma60})还有段距离，中期均线还是{'阻力' if latest < ma60 else '支撑'}"
+            )
 
         # 多信号集成评分 + 基本面估值
         qs = analysis.get("quant_score") or {}
         if qs:
-            lines.append(f"多信号评分{qs.get('score')}/100（{qs.get('label')}），波动率{vol}%")
+            lines.append(
+                f"多信号评分{qs.get('score')}/100（{qs.get('label')}），波动率{vol}%"
+            )
         fa = state.get("fundamental_analysis") or {}
         if fa:
-            lines.append(f"基本面：PE {fa.get('pe')}，PB {fa.get('pb')}，估值{fa.get('valuation')}")
-        
+            lines.append(
+                f"基本面：PE {fa.get('pe')}，PB {fa.get('pb')}，估值{fa.get('valuation')}"
+            )
+
         # 量化评估摘要
         if quant_assessment and not quant_assessment.get("parse_error"):
             sa = quant_assessment.get("summary", "")
@@ -192,7 +210,13 @@ async def _analyze_watchlist_batch(state: AgentState) -> AgentState:
                 analysis["quant_score"] = compute_quant_score(analysis, ext)
 
             trend = analysis.get("trend", "N/A")
-            trend_cn = "多头" if trend == "bullish" else "空头" if trend == "bearish" else "震荡"
+            trend_cn = (
+                "多头"
+                if trend == "bullish"
+                else "空头"
+                if trend == "bearish"
+                else "震荡"
+            )
             qs = analysis.get("quant_score") or {}
             latest = analysis.get("latest_price", "N/A")
             rsi = analysis.get("rsi", "N/A")
@@ -280,7 +304,9 @@ def _build_tech_summary(analysis: dict, label: str) -> str:
         f"lower={bb.get('lower')}"
     )
     lines.append(f"Volatility: {analysis.get('volatility')}%")
-    lines.append(f"Support: {analysis.get('support')}, Resistance: {analysis.get('resistance')}")
+    lines.append(
+        f"Support: {analysis.get('support')}, Resistance: {analysis.get('resistance')}"
+    )
     # 扩展指标 + 集成评分
     ext = analysis.get("extended") or {}
     if ext:
@@ -358,4 +384,6 @@ async def _quant_llm_legacy(state: AgentState, analysis: dict, label: str) -> di
         {"role": "system", "content": QUANT_RESEARCHER_SYSTEM},
         {"role": "user", "content": ctx_prefix + time_prefix + tech_summary},
     ]
-    return await choose_client(True).chat_json(messages, temperature=0.1, max_tokens=1024)
+    return await choose_client(True).chat_json(
+        messages, temperature=0.1, max_tokens=1024
+    )

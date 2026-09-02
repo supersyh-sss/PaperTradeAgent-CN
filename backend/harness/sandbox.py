@@ -22,29 +22,30 @@ logger = logging.getLogger(__name__)
 
 class IsolationLevel(IntEnum):
     """隔离等级"""
-    PROCESS = 1          # 进程级
-    CONTAINER = 2        # 容器级 (Docker)
-    MICRO_VM = 3         # 轻量级 VM (Firecracker)
-    FULL_VM = 4          # 完整 VM
+
+    PROCESS = 1  # 进程级
+    CONTAINER = 2  # 容器级 (Docker)
+    MICRO_VM = 3  # 轻量级 VM (Firecracker)
+    FULL_VM = 4  # 完整 VM
 
 
 # 高风险操作 → 最低隔离等级要求
 RISK_ISOLATION_MAP = {
-    "execute_trade": IsolationLevel.PROCESS,    # 交易执行（有订单引擎兜底）
-    "cancel_order": IsolationLevel.PROCESS,     # 撤单
-    "modify_account": IsolationLevel.CONTAINER, # 修改账户信息
-    "execute_code": IsolationLevel.MICRO_VM,    # 执行任意代码
-    "file_access": IsolationLevel.CONTAINER,    # 文件系统访问
-    "network_access": IsolationLevel.PROCESS,   # 网络请求
-    "database_write": IsolationLevel.PROCESS,    # 数据库写操作
-    "agent_memory_modify": IsolationLevel.PROCESS, # 修改 Agent 记忆
+    "execute_trade": IsolationLevel.PROCESS,  # 交易执行（有订单引擎兜底）
+    "cancel_order": IsolationLevel.PROCESS,  # 撤单
+    "modify_account": IsolationLevel.CONTAINER,  # 修改账户信息
+    "execute_code": IsolationLevel.MICRO_VM,  # 执行任意代码
+    "file_access": IsolationLevel.CONTAINER,  # 文件系统访问
+    "network_access": IsolationLevel.PROCESS,  # 网络请求
+    "database_write": IsolationLevel.PROCESS,  # 数据库写操作
+    "agent_memory_modify": IsolationLevel.PROCESS,  # 修改 Agent 记忆
 }
 
 
 @dataclass
 class SandboxManager:
     """沙箱管理器 — 按操作风险等级匹配隔离策略"""
-    
+
     current_level: IsolationLevel = IsolationLevel.PROCESS
     _operation_handlers: dict[str, Callable] = field(default_factory=dict)
 

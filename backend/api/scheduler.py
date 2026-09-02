@@ -3,6 +3,7 @@
 让 Agent 与用户能够制定、查看、暂停、删除、立即执行定时任务。
 调度循环在服务层（services/scheduler.py）由后台任务驱动。
 """
+
 import logging
 from datetime import datetime
 
@@ -12,6 +13,7 @@ from pydantic import BaseModel, Field
 from ..middleware.error_handler import get_current_user
 from ..services import db
 from ..services.scheduler import _compute_next_run, run_task_now
+from ..services.trading_time import CHINA_TZ
 
 logger = logging.getLogger(__name__)
 
@@ -46,39 +48,62 @@ async def list_tasks(user_id: str = Depends(get_current_user)):
 async def create_task(req: ScheduleCreate, user_id: str = Depends(get_current_user)):
     if req.schedule_type not in ("interval", "daily"):
         raise HTTPException(400, "schedule_type must be interval or daily")
+    # 调度时间统一使用北京时间（与交易时段判断同源），避免依赖服务器时区
+    now_bjt = datetime.now(CHINA_TZ).replace(tzinfo=None)
     next_run = _compute_next_run(
-        {"schedule_type": req.schedule_type, "interval_seconds": req.interval_seconds,
-         "daily_time": req.daily_time},
-        datetime.now(),
+        {
+            "schedule_type": req.schedule_type,
+            "interval_seconds": req.interval_seconds,
+            "daily_time": req.daily_time,
+        },
+        now_bjt,
     )
     task = await db.create_scheduled_task(
-        user_id, req.name, req.agent_key, req.prompt,
-        schedule_type=req.schedule_type, interval_seconds=req.interval_seconds,
-        daily_time=req.daily_time, next_run_at=next_run,
+        user_id,
+        req.name,
+        req.agent_key,
+        req.prompt,
+        schedule_type=req.schedule_type,
+        interval_seconds=req.interval_seconds,
+        daily_time=req.daily_time,
+        next_run_at=next_run,
     )
     return {"success": True, "task": task}
 
 
 @router.put("/tasks/{task_id}")
-async def update_task(task_id: int, req: ScheduleUpdate, user_id: str = Depends(get_current_user)):
+async def update_task(
+    task_id: int, req: ScheduleUpdate, user_id: str = Depends(get_current_user)
+):
     existing = await db.get_scheduled_task(task_id, user_id)
     if not existing:
         raise HTTPException(404, "任务不存在")
 
     fields = req.model_dump(exclude_unset=True)
-    if fields.get("schedule_type") and fields["schedule_type"] not in ("interval", "daily"):
+    if fields.get("schedule_type") and fields["schedule_type"] not in (
+        "interval",
+        "daily",
+    ):
         raise HTTPException(400, "schedule_type must be interval or daily")
     if fields.get("status") and fields["status"] not in ("active", "paused"):
         raise HTTPException(400, "status must be active or paused")
 
     # 若调度参数变化，重算下一次运行时间
-    if "schedule_type" in fields or "interval_seconds" in fields or "daily_time" in fields:
+    if (
+        "schedule_type" in fields
+        or "interval_seconds" in fields
+        or "daily_time" in fields
+    ):
         merged = {
             "schedule_type": fields.get("schedule_type", existing.get("schedule_type")),
-            "interval_seconds": fields.get("interval_seconds", existing.get("interval_seconds")),
+            "interval_seconds": fields.get(
+                "interval_seconds", existing.get("interval_seconds")
+            ),
             "daily_time": fields.get("daily_time", existing.get("daily_time")),
         }
-        fields["next_run_at"] = _compute_next_run(merged, datetime.now())
+        fields["next_run_at"] = _compute_next_run(
+            merged, datetime.now(CHINA_TZ).replace(tzinfo=None)
+        )
 
     ok = await db.update_scheduled_task(task_id, user_id, **fields)
     return {"success": ok}

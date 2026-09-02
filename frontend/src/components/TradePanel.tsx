@@ -166,12 +166,18 @@ export default function TradePanel({ symbol, name }: { symbol: string; name: str
   const chgPct = prevClose > 0 ? (chg / prevClose) * 100 : 0;
   const numPrice = parseFloat(price) || currentPrice || 0;
   const fees = useMemo(() => calcFees(side, numPrice, quantity, symbol), [side, numPrice, quantity, symbol]);
+  // 可用口径：现金余额扣除在途委托锁定；可卖股数扣除 T+1 冻结与在途卖单
   const balance = portfolio?.balance ?? 0;
-  const sellable = portfolio?.positions.find((p) => p.symbol === symbol)?.sellable_quantity ?? 0;
+  const lockedBalance = portfolio?.locked_balance ?? 0;
+  const available = portfolio?.available_balance ?? Math.max(balance - lockedBalance, 0);
+  const pos = portfolio?.positions.find((p) => p.symbol === symbol);
+  const sellable = pos?.sellable_quantity ?? 0;
+  const lockedShares = pos?.locked_shares ?? 0;
+  const tradable = pos?.tradable_quantity ?? Math.max(sellable - lockedShares, 0);
   const step = priceStep(numPrice || currentPrice || 0);
   const stepCents = Math.round(step * 100);
   const buyAmount = numPrice * quantity;
-  const insufficient = side === "BUY" && numPrice > 0 && quantity >= 100 && buyAmount > balance;
+  const insufficient = side === "BUY" && numPrice > 0 && quantity >= 100 && (buyAmount + (fees?.total ?? 0)) > available;
   const limitPctVal = limitPct(symbol);
   const limitUp = prevClose > 0 ? +(prevClose * (1 + limitPctVal)).toFixed(2) : 0;
   const limitDown = prevClose > 0 ? +(prevClose * (1 - limitPctVal)).toFixed(2) : 0;
@@ -202,8 +208,8 @@ export default function TradePanel({ symbol, name }: { symbol: string; name: str
   useEffect(() => { if (orderType === "LIMIT" && !price && currentPrice > 0) setPrice(currentPrice.toFixed(2)); }, [orderType, currentPrice, price]);
 
   const setRatio = (r: number) => {
-    if (side === "BUY" && numPrice > 0) setQuantity(Math.max(100, Math.floor((balance * r) / numPrice / 100) * 100));
-    else if (side === "SELL") setQuantity(Math.max(100, Math.floor((sellable * r) / 100) * 100));
+    if (side === "BUY" && numPrice > 0) setQuantity(Math.max(100, Math.floor((available * r) / numPrice / 100) * 100));
+    else if (side === "SELL") setQuantity(Math.max(100, Math.floor((tradable * r) / 100) * 100));
   };
 
   const submit = useCallback(async () => {
@@ -221,7 +227,24 @@ export default function TradePanel({ symbol, name }: { symbol: string; name: str
 
   const isUp = chg >= 0;
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 space-y-3">
+    <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 space-y-3 scrollbar-thin">
+      {!stockInfo && (
+        <div className="card p-3.5 space-y-2.5" role="status" aria-label="行情加载中">
+          <div className="flex items-start justify-between">
+            <div className="space-y-1.5">
+              <div className="skeleton h-4 w-24" />
+              <div className="skeleton h-3 w-16" />
+            </div>
+            <div className="space-y-1.5 text-right">
+              <div className="skeleton h-6 w-20 ml-auto" />
+              <div className="skeleton h-3 w-24 ml-auto" />
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-1">
+            {Array.from({ length: 6 }).map((_, i) => <div key={i} className="skeleton h-6" />)}
+          </div>
+        </div>
+      )}
       {stockInfo && (
         <div className="card p-3.5">
           <div className="flex items-start justify-between gap-2 mb-2.5">
@@ -272,7 +295,11 @@ export default function TradePanel({ symbol, name }: { symbol: string; name: str
         <div>
           <div className="flex items-baseline justify-between mb-1.5">
             <label className="text-[11px] text-text-muted">数量（股）</label>
-            <span className="text-[11px] text-text-muted font-data">可用 {side === "BUY" ? `¥${fmt2(balance)}` : `${sellable}股`}</span>
+            <span className="text-[11px] text-text-muted font-data">
+              {side === "BUY"
+                ? `可用 ¥${fmt2(available)}${lockedBalance > 0 ? `（冻结${fmt2(lockedBalance)}）` : ""}`
+                : `可卖 ${tradable}股${tradable < sellable ? `（冻结${sellable - tradable}股）` : ""}`}
+            </span>
           </div>
           <div className="grid grid-cols-[36px_1fr_36px] gap-1.5">
             <button onClick={() => setQuantity((q) => Math.max(100, q - 100))} className="btn h-9 rounded-lg bg-input-bg border border-border-strong text-text-secondary hover:bg-elevated"><Minus /></button>
@@ -330,10 +357,10 @@ export default function TradePanel({ symbol, name }: { symbol: string; name: str
             )}
           </div>
         )}
-        <div className="px-4">
+        <div className="px-1">
           <button onClick={submit} disabled={submitting || quantity < 100 || insufficient || priceOutOfRange}
-            className={`btn w-full h-7 text-[11px] font-bold text-white ${side === "BUY" ? "bg-up hover:bg-up/90" : "bg-down hover:bg-down/90"}`}>
-            {submitting ? <span className="btn-spinner" /> : <SendIcon size={10} />}
+            className={`btn w-full h-10 text-[13px] font-bold text-white rounded-xl shadow-lg disabled:opacity-40 ${side === "BUY" ? "bg-up hover:bg-up/90 shadow-red-500/20" : "bg-down hover:bg-down/90 shadow-emerald-500/20"}`}>
+            {submitting ? <span className="btn-spinner" /> : <SendIcon size={14} />}
             {submitting ? "提交中..." : `${side === "BUY" ? "确认买入" : "确认卖出"} ${quantity}股 ${name}`}
           </button>
         </div>

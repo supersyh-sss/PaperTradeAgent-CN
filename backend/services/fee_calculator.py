@@ -7,13 +7,11 @@ A股交易费用计算器
 - 规费: 含经手费+证管费，买卖双向，万0.641 (实际上大多经纪商含在佣金内)
 """
 
-
-
 # A股费用标准（可配置）
-STAMP_TAX_RATE = 0.0005        # 印花税：卖出 0.05%
-COMMISSION_RATE = 0.00025      # 佣金：万2.5
-COMMISSION_MIN = 5.0           # 最低佣金 5 元
-TRANSFER_FEE_RATE = 0.00001    # 过户费：万0.1（仅沪市）
+STAMP_TAX_RATE = 0.0005  # 印花税：卖出 0.05%
+COMMISSION_RATE = 0.00025  # 佣金：万2.5
+COMMISSION_MIN = 5.0  # 最低佣金 5 元
+TRANSFER_FEE_RATE = 0.00001  # 过户费：万0.1（仅沪市）
 
 
 def calculate_fee(
@@ -75,7 +73,9 @@ def calculate_net_amount(
         return gross - fee, fee
 
 
-def format_fee_estimate(price: float, quantity: int, side: str, exchange: str = "sh") -> str:
+def format_fee_estimate(
+    price: float, quantity: int, side: str, exchange: str = "sh"
+) -> str:
     """生成费用预估说明文本"""
     gross = price * quantity
     fee, breakdown = calculate_fee(gross, side, exchange)

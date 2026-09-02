@@ -1,3 +1,6 @@
+// oxlint-disable react/only-export-components
+// 图标库文件：全部导出均为 makeIcon 工厂返回的组件（统一 SVG 外观与 props），
+// react-refresh 规则无法静态识别工厂产物、且该模块本就不依赖热更新回退，故整文件豁免。
 import React from "react";
 
 type IconSize = 16 | 18 | 20 | 24 | number;
@@ -368,6 +371,56 @@ export const ThumbsDownFilledIcon: React.FC<IconProps> = ({ size = 16, className
     <path d="M15 3H6c-.83 0-1.54.5-1.84 1.22l-3.02 7.05c-.09.23-.14.47-.14.73v2c0 1.1.9 2 2 2h6.31l-.95 4.57-.03.32c0 .41.17.79.44 1.06L9.83 23l6.59-6.59c.36-.36.58-.86.58-1.41V5c0-1.1-.9-2-2-2z" />
   </svg>
 );
+
+export const DatabaseIcon = makeIcon("Database", () => (
+  <>
+    <ellipse cx="12" cy="5" rx="9" ry="3" />
+    <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+    <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+  </>
+));
+
+export const CalendarIcon = makeIcon("Calendar", () => (
+  <>
+    <rect x="3" y="4" width="18" height="18" rx="2" />
+    <path d="M16 2v4" />
+    <path d="M8 2v4" />
+    <path d="M3 10h18" />
+    <path d="M8 14h.01" />
+    <path d="M12 14h.01" />
+    <path d="M16 14h.01" />
+    <path d="M8 18h.01" />
+    <path d="M12 18h.01" />
+  </>
+));
+
+export const ActivityIcon = makeIcon("Activity", () => (
+  <>
+    <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+  </>
+));
+
+export const SlidersIcon = makeIcon("Sliders", () => (
+  <>
+    <path d="M4 21v-7" />
+    <path d="M4 10V3" />
+    <path d="M12 21v-9" />
+    <path d="M12 8V3" />
+    <path d="M20 21v-5" />
+    <path d="M20 12V3" />
+    <path d="M1 14h6" />
+    <path d="M9 8h6" />
+    <path d="M17 16h6" />
+  </>
+));
+
+export const TimerIcon = makeIcon("Timer", () => (
+  <>
+    <path d="M10 2h4" />
+    <path d="M12 14l3-3" />
+    <circle cx="12" cy="14" r="8" />
+  </>
+));
 
 export interface AgentIconMeta {
   icon: React.FC<IconProps>;

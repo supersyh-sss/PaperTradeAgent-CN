@@ -1,4 +1,5 @@
 """环境变量配置 - 所有配置从 .env 读取，无硬编码敏感信息"""
+
 import logging
 import os
 from pathlib import Path
@@ -9,14 +10,17 @@ logger = logging.getLogger(__name__)
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 try:
     from dotenv import load_dotenv
+
     _env_path = _PROJECT_ROOT / ".env"
     if _env_path.exists():
         load_dotenv(_env_path)
 except ImportError:
     logger.debug("dotenv not installed")
 
+
 def _env(key: str, default: str = "") -> str:
     return os.getenv(key, default)
+
 
 def _env_int(key: str, default: int) -> int:
     try:
@@ -24,11 +28,13 @@ def _env_int(key: str, default: int) -> int:
     except (TypeError, ValueError):
         return default
 
+
 def _env_float(key: str, default: float) -> float:
     try:
         return float(os.getenv(key, default))
     except (TypeError, ValueError):
         return default
+
 
 # ── DeepSeek LLM API ──
 DEEPSEEK_API_KEY = _env("DEEPSEEK_API_KEY")
@@ -55,6 +61,7 @@ FRONTEND_PORT = _env_int("FRONTEND_PORT", 5173)
 TEST_TOKEN = _env("TEST_TOKEN", "Bearer mvp_test_token_2026")
 TEST_USER_ID = _env("TEST_USER_ID", "default")
 
+
 # CORS
 # 生产环境应配置具体域名，开发环境默认允许前端 localhost
 def _parse_cors_origins(raw: str):
@@ -62,8 +69,13 @@ def _parse_cors_origins(raw: str):
         return ["http://localhost:5173", "http://127.0.0.1:5173"]
     return [o.strip() for o in raw.split(",") if o.strip()]
 
+
 CORS_ALLOW_ORIGINS = _parse_cors_origins(_env("CORS_ALLOW_ORIGINS", ""))
-CORS_ALLOW_CREDENTIALS = _env("CORS_ALLOW_CREDENTIALS", "true").lower() in ("1", "true", "yes")
+CORS_ALLOW_CREDENTIALS = _env("CORS_ALLOW_CREDENTIALS", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 
 # ── Trading Simulation ──
 INITIAL_BALANCE = _env_float("INITIAL_BALANCE", 1000000.00)
@@ -115,7 +127,9 @@ HARNESS_CIRCUIT_BREAKER_THRESHOLD = _env_int("HARNESS_CIRCUIT_BREAKER_THRESHOLD"
 # 熔断器：恢复超时（毫秒）
 HARNESS_RECOVERY_TIMEOUT_MS = _env_int("HARNESS_RECOVERY_TIMEOUT_MS", 30000)
 # 上下文压缩：触发摘要的最小消息数
-HARNESS_CONTEXT_COMPRESSION_THRESHOLD = _env_int("HARNESS_CONTEXT_COMPRESSION_THRESHOLD", 20)
+HARNESS_CONTEXT_COMPRESSION_THRESHOLD = _env_int(
+    "HARNESS_CONTEXT_COMPRESSION_THRESHOLD", 20
+)
 # 沙箱：当前隔离等级 (1=进程, 2=容器, 3=MicroVM, 4=完整VM)
 HARNESS_ISOLATION_LEVEL = _env_int("HARNESS_ISOLATION_LEVEL", 1)
 # 审计日志：最大保留条数
@@ -123,7 +137,11 @@ HARNESS_AUDIT_MAX_ENTRIES = _env_int("HARNESS_AUDIT_MAX_ENTRIES", 10000)
 # 度量：历史会话最大保留数
 HARNESS_METRICS_MAX_SESSIONS = _env_int("HARNESS_METRICS_MAX_SESSIONS", 1000)
 # 安全：是否启用输入净化
-HARNESS_INPUT_SANITIZATION = _env("HARNESS_INPUT_SANITIZATION", "true").lower() in ("1", "true", "yes")
+HARNESS_INPUT_SANITIZATION = _env("HARNESS_INPUT_SANITIZATION", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 
 # Finance API URLs
 TENCENT_REALTIME_URL = "http://qt.gtimg.cn/q={codes}"

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import ReactEChartsCore from "echarts-for-react/lib/core";
+import ReactEChartsCoreModule from "echarts-for-react/lib/core";
+// CJS/ESM 互操作兜底：dev 预构建与生产构建下 default 导出可能包一层，统一解包取组件
+const ReactEChartsCore = (ReactEChartsCoreModule as any).default ?? ReactEChartsCoreModule;
 import * as echarts from "echarts/core";
 import { GridComponent, TooltipComponent, LegendComponent, DataZoomComponent } from "echarts/components";
 import { CandlestickChart, LineChart, BarChart, ScatterChart } from "echarts/charts";
@@ -118,9 +120,28 @@ export default function StockDetail({ symbol, name }: { symbol: string; name: st
       </div>
 
       {loading ? (
-        <div className="py-16 flex items-center justify-center text-text-muted text-[12px]"><div className="w-4 h-4 border-2 border-accent/30 border-t-accent rounded-full animate-spin mr-2" />加载中...</div>
+        <div className="p-4 space-y-4" role="status" aria-label="K线数据加载中">
+          <div className="flex items-end gap-2.5">
+            <div className="skeleton h-8 w-28" />
+            <div className="skeleton h-4 w-16" />
+          </div>
+          <div className="grid grid-cols-3 gap-1.5">
+            {Array.from({ length: 6 }).map((_, i) => <div key={i} className="skeleton h-9" />)}
+          </div>
+          <div className="skeleton h-[340px] rounded-xl" />
+          <div className="space-y-1.5">
+            <div className="skeleton h-3 w-24" />
+            <div className="grid grid-cols-3 gap-1.5">
+              {Array.from({ length: 3 }).map((_, i) => <div key={i} className="skeleton h-9" />)}
+            </div>
+          </div>
+        </div>
       ) : !kline ? (
-        <div className="py-16 text-center text-text-muted text-[12px]">无K线数据</div>
+        <div className="py-20 text-center flex flex-col items-center gap-2.5 text-text-muted">
+          <div className="w-11 h-11 rounded-2xl bg-input-bg border border-border flex items-center justify-center"><span className="text-[13px] font-bold font-data">—</span></div>
+          <div className="text-[12px]">暂无K线数据</div>
+          <div className="text-[11px] text-text-disabled">该股票可能暂无行情记录，请稍后重试</div>
+        </div>
       ) : (
         <>
           {rt && (
@@ -139,10 +160,21 @@ export default function StockDetail({ symbol, name }: { symbol: string; name: st
                 <Cell l="量" v={rt.volume ? fmtVol(rt.volume) : "-"} />
                 <Cell l="换手" v={rt.turnover != null ? `${rt.turnover}%` : "-"} />
               </div>
+              {(rt.amount != null || rt.pe != null || rt.pb != null) && (
+                <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-text-muted font-data">
+                  {rt.amount != null && <span>成交额 <span className="text-text-secondary">{rt.amount >= 1e8 ? `${(rt.amount / 1e8).toFixed(2)}亿` : rt.amount >= 1e4 ? `${(rt.amount / 1e4).toFixed(2)}万` : rt.amount.toFixed(0)}</span></span>}
+                  {rt.pe != null && <span>PE <span className="text-text-secondary">{rt.pe.toFixed(2)}</span></span>}
+                  {rt.pb != null && <span>PB <span className="text-text-secondary">{rt.pb.toFixed(2)}</span></span>}
+                </div>
+              )}
             </div>
           )}
           <div className="px-1 py-2">
-            {option && <ReactEChartsCore echarts={echarts} option={option} style={{ height: 400 }} notMerge lazyUpdate />}
+            {option && (
+              <div className="animate-fade-in">
+                <ReactEChartsCore echarts={echarts} option={option} style={{ height: 400 }} notMerge lazyUpdate />
+              </div>
+            )}
           </div>
           {kline.indicators && (
             <div className="px-3 pb-4 space-y-2.5">

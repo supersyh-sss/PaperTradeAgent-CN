@@ -1,4 +1,5 @@
 """Agent 共享工具函数 — 消除 6 个 Agent 文件中的重复代码"""
+
 import json as json_mod
 import logging
 import random
@@ -145,7 +146,9 @@ async def load_cached_or_call_llm(
     cached = None
     if check_trading and not is_trading:
         try:
-            cached_raw = await get_agent_memory(user_id, agent_key, symbol, query_hash, query=user_input)
+            cached_raw = await get_agent_memory(
+                user_id, agent_key, symbol, query_hash, query=user_input
+            )
             if cached_raw:
                 cached = json_mod.loads(cached_raw)
         except Exception as e:
@@ -157,7 +160,9 @@ async def load_cached_or_call_llm(
     # 调用 LLM
     try:
         messages = build_messages()
-        llm_result = await llm_client.chat_json(messages, temperature=temperature, max_tokens=max_tokens)
+        llm_result = await llm_client.chat_json(
+            messages, temperature=temperature, max_tokens=max_tokens
+        )
         if llm_result.get("parse_error"):
             raise ValueError(f"LLM returned non-JSON for {agent_key}")
 
@@ -165,9 +170,12 @@ async def load_cached_or_call_llm(
         if check_trading and not is_trading:
             try:
                 await save_agent_memory(
-                    user_id, agent_key, symbol,
-                    query_hash, json_mod.dumps(llm_result, ensure_ascii=False, default=str),
-                    query=user_input
+                    user_id,
+                    agent_key,
+                    symbol,
+                    query_hash,
+                    json_mod.dumps(llm_result, ensure_ascii=False, default=str),
+                    query=user_input,
                 )
             except Exception as e:
                 logger.warning("缓存保存失败 [%s/%s]: %s", agent_key, symbol, e)

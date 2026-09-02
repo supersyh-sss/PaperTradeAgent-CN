@@ -3,6 +3,7 @@
 默认使用 embedding 模型（BAAI/bge-small-zh-v1.5）做真正的语义检索；
 当 embedding 不可用时，降级到字符 n-gram + Dice 系数兜底，保证可离线、可单测。
 """
+
 import json
 import logging
 import re
@@ -34,11 +35,13 @@ def cosine_similarity(a: list[float], b: list[float]) -> float:
 
 def embed_query(query: str) -> list[float] | None:
     from .embedding import embed_one
+
     return embed_one(query)
 
 
 def embed_texts(texts: list[str]) -> list[list[float]] | None:
     from .embedding import embed
+
     return embed(texts)
 
 
@@ -49,7 +52,7 @@ def _ngrams(text: str, n: int = 2) -> set:
         return set()
     if len(cleaned) <= n:
         return {cleaned}
-    return {cleaned[i:i + n] for i in range(len(cleaned) - n + 1)}
+    return {cleaned[i : i + n] for i in range(len(cleaned) - n + 1)}
 
 
 def ngram_similarity(a: str, b: str) -> float:
@@ -90,9 +93,14 @@ def _parse_vector(value) -> list[float] | None:
 
 
 # ---- 统一检索入口 ----
-def search(query: str, documents: Iterable[dict], *, top_k: int = 3,
-           threshold: float | None = None,
-           query_vector: list[float] | None = None) -> list:
+def search(
+    query: str,
+    documents: Iterable[dict],
+    *,
+    top_k: int = 3,
+    threshold: float | None = None,
+    query_vector: list[float] | None = None,
+) -> list:
     """向量语义检索（embedding + 余弦），embedding 不可用时降级 n-gram。
 
     Args:

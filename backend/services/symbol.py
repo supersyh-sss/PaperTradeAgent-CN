@@ -6,6 +6,7 @@
 - 所有入口都接受 sh600519 / 600519 / 贵州茅台 等形态，统一归一化
 - 代码/名称映射优先使用 stock_lookup 全量数据（5633只）
 """
+
 import re
 
 _CODE_RE = re.compile(r"(?:sh|sz|bj)?(\d{6})")
@@ -52,6 +53,7 @@ def normalize_symbol(query: str) -> str | None:
     # 2. 使用全量 stock_lookup 做名称→代码转换
     try:
         from .stock_lookup import resolve
+
         result = resolve(query)
         if result:
             return result["code"]

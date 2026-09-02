@@ -1,4 +1,5 @@
 """Unit tests for agents/utils.py shared functions."""
+
 from unittest.mock import patch
 
 FAKE_AGENT_PROFILES = {

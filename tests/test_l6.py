@@ -1,4 +1,5 @@
 """L6 人机协同设计单元测试 — 最小权限 / 可感知降级 / 低置信度求助（确定性，无网络/API）。"""
+
 import sys
 from pathlib import Path
 
@@ -61,7 +62,14 @@ def test_low_confidence_note_triggered_by_neutral_sentiment():
 
 def test_low_confidence_note_empty_when_confident():
     state = {
-        "quant_assessment": {"strength_rating": 8, "volatility_assessment": "moderate", "risk_flags": []},
-        "intelligence_assessment": {"sentiment_score": 0.8, "impact_strength": "strong"},
+        "quant_assessment": {
+            "strength_rating": 8,
+            "volatility_assessment": "moderate",
+            "risk_flags": [],
+        },
+        "intelligence_assessment": {
+            "sentiment_score": 0.8,
+            "impact_strength": "strong",
+        },
     }
     assert _low_confidence_note(state) == ""

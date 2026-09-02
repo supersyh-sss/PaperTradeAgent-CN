@@ -1,4 +1,5 @@
 """多数据源管理器：自动故障切换 + 健康恢复"""
+
 import logging
 from datetime import datetime, timedelta
 from enum import Enum
@@ -58,7 +59,9 @@ class DataSourceManager:
                     try:
                         fetched = await self._fetch_realtime(source, missing)
                         if fetched:
-                            normalized_result = {pure_code(k): v for k, v in fetched.items() if v}
+                            normalized_result = {
+                                pure_code(k): v for k, v in fetched.items() if v
+                            }
                             market_cache.set_batch(normalized_result)
                             self.success_count[source] += 1
                             self._mark_source_healthy(source)
@@ -98,7 +101,9 @@ class DataSourceManager:
         c = (code or "").strip().lower()
         return len(c) == 8 and c.startswith(("sh", "sz", "bj")) and c[2:].isdigit()
 
-    async def get_kline(self, code: str, period: str = "day", count: int = 250) -> list[dict] | None:
+    async def get_kline(
+        self, code: str, period: str = "day", count: int = 250
+    ) -> list[dict] | None:
         """获取历史K线"""
         norm = pure_code(code)
         # 检查缓存
@@ -122,7 +127,9 @@ class DataSourceManager:
         result = await self.get_realtime([code])
         return result.get(pure_code(code))
 
-    async def _fetch_realtime(self, source: DataSource, codes: list[str]) -> dict[str, dict]:
+    async def _fetch_realtime(
+        self, source: DataSource, codes: list[str]
+    ) -> dict[str, dict]:
         if source == DataSource.TENCENT:
             return await tencent_api.get_realtime(codes)
         elif source == DataSource.SINA:

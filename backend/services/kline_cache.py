@@ -1,4 +1,5 @@
 """K线数据文件缓存 - 避免重复请求API"""
+
 import json
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
@@ -51,8 +52,10 @@ def _is_intraday_cache_valid(cache_mtime: float, ttl_seconds: int = 300) -> bool
 def _last_trading_day(d: date) -> date:
     """上一个交易日（含中国节假日调休）"""
     import datetime as dt
+
     try:
         from chinese_calendar import is_workday
+
         result = d - dt.timedelta(days=1)
         while not is_workday(result):
             result -= dt.timedelta(days=1)
@@ -65,7 +68,9 @@ def _last_trading_day(d: date) -> date:
         return result
 
 
-def get_cached_kline(symbol: str, period: str = "day", days: int = 360) -> list[dict] | None:
+def get_cached_kline(
+    symbol: str, period: str = "day", days: int = 360
+) -> list[dict] | None:
     """获取缓存的K线数据"""
     _ensure_cache_dir()
     cache_file = _cache_path(symbol, period)

@@ -1,11 +1,13 @@
 """会话 SSE 端点 - 实时推送系统消息（监控告警、突发新闻等）"""
+
 import asyncio
 import json
 import logging
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 
+from ..middleware.error_handler import get_current_user
 from ..services.live_prices import _get_order_queue
 from ..services.session_manager import poll_messages, set_active_session
 
@@ -15,11 +17,14 @@ router = APIRouter(prefix="/api/session", tags=["session"])
 
 
 @router.get("/stream")
-async def session_stream(session_id: str = Query(...)):
+async def session_stream(
+    session_id: str = Query(...), _: str = Depends(get_current_user)
+):
     """SSE 端点：实时推送系统消息（监控告警/突发新闻）
 
     连接后自动设置该 session 为活跃会话。
     事件格式：{"type": "system_alert"|"breaking_news"|"monitor_warning"|"monitor_alert", "data": {...}}
+    鉴权说明：EventSource 无法携带 Header，此处兼容 query 传 token（get_current_user 支持）。
     """
     set_active_session(session_id)
     logger.info(f"会话 SSE 已连接: {session_id}")

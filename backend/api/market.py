@@ -1,4 +1,5 @@
 """市场行情 API - 实时行情SSE + K线数据"""
+
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 
@@ -34,7 +35,9 @@ async def live_prices(user_id: str = Depends(get_current_user)):
 
 
 @router.get("/price-stream")
-async def price_stream(symbols: str = Query(...), user_id: str = Depends(get_current_user)):
+async def price_stream(
+    symbols: str = Query(...), user_id: str = Depends(get_current_user)
+):
     """SSE实时股价流：交易确认面板使用"""
     codes = [pure_code(s.strip()) for s in symbols.split(",") if s.strip()]
     codes = [c for c in codes if c]
@@ -50,13 +53,17 @@ async def price_stream(symbols: str = Query(...), user_id: str = Depends(get_cur
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
-        }
+        },
     )
 
 
 @router.get("/kline/{symbol}")
-async def kline(symbol: str, period: str = "day", days: int = 360,
-                user_id: str = Depends(get_current_user)):
+async def kline(
+    symbol: str,
+    period: str = "day",
+    days: int = 360,
+    user_id: str = Depends(get_current_user),
+):
     """获取K线数据（优先从文件缓存读取）"""
     symbol = pure_code(symbol)
     # 1. 尝试文件缓存
@@ -89,7 +96,9 @@ async def sentiment(user_id: str = Depends(get_current_user)):
 
 
 @router.get("/predictions")
-async def predictions(symbol: str = Query(None), user_id: str = Depends(get_current_user)):
+async def predictions(
+    symbol: str = Query(None), user_id: str = Depends(get_current_user)
+):
     """获取算法预测信号"""
     all_preds = get_cached_predictions()
     if symbol:

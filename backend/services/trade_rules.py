@@ -1,4 +1,5 @@
 """A股交易规则校验 - T+1/手数/涨跌停/交易时间"""
+
 from datetime import date, datetime, time, timedelta, timezone
 
 BJT = timezone(timedelta(hours=8))
@@ -10,9 +11,9 @@ AFTERNOON_START = time(13, 0)
 AFTERNOON_END = time(15, 0)
 
 # 涨跌停幅度
-LIMIT_MAIN = 0.10      # 主板±10%
-LIMIT_CHINEXT = 0.20   # 创业板/科创板±20%
-LIMIT_BJ = 0.30        # 北交所±30%
+LIMIT_MAIN = 0.10  # 主板±10%
+LIMIT_CHINEXT = 0.20  # 创业板/科创板±20%
+LIMIT_BJ = 0.30  # 北交所±30%
 
 
 def is_trading_time() -> bool:
@@ -21,30 +22,56 @@ def is_trading_time() -> bool:
     if now.weekday() >= 5:  # 周末
         return False
     t = now.time()
-    return (MORNING_START <= t <= MORNING_END) or (AFTERNOON_START <= t <= AFTERNOON_END)
+    return (MORNING_START <= t <= MORNING_END) or (
+        AFTERNOON_START <= t <= AFTERNOON_END
+    )
 
 
 def get_trading_status() -> dict:
     """获取当前交易状态详情"""
     now = datetime.now(BJT)
     if now.weekday() >= 5:
-        return {"status": "closed", "is_trading": False, "detail": "周末休市",
-                "next_trading_day": _next_trading_day(now).isoformat()}
+        return {
+            "status": "closed",
+            "is_trading": False,
+            "detail": "周末休市",
+            "next_trading_day": _next_trading_day(now).isoformat(),
+        }
     t = now.time()
     if t < MORNING_START:
-        return {"status": "pre_market", "is_trading": False, "detail": "盘前（等待9:30开盘）",
-                "next_trading_day": now.date().isoformat()}
+        return {
+            "status": "pre_market",
+            "is_trading": False,
+            "detail": "盘前（等待9:30开盘）",
+            "next_trading_day": now.date().isoformat(),
+        }
     if MORNING_START <= t <= MORNING_END:
-        return {"status": "trading", "is_trading": True, "detail": "交易中（早盘）",
-                "next_trading_day": now.date().isoformat()}
+        return {
+            "status": "trading",
+            "is_trading": True,
+            "detail": "交易中（早盘）",
+            "next_trading_day": now.date().isoformat(),
+        }
     if t < AFTERNOON_START:
-        return {"status": "lunch_break", "is_trading": False, "detail": "午间休市",
-                "next_trading_day": now.date().isoformat()}
+        return {
+            "status": "lunch_break",
+            "is_trading": False,
+            "detail": "午间休市",
+            "next_trading_day": now.date().isoformat(),
+        }
     if AFTERNOON_START <= t <= AFTERNOON_END:
-        return {"status": "trading", "is_trading": True, "detail": "交易中（午盘）",
-                "next_trading_day": now.date().isoformat()}
-    return {"status": "post_market", "is_trading": False, "detail": "已收盘",
-            "next_trading_day": _next_trading_day(now).isoformat()}
+        return {
+            "status": "trading",
+            "is_trading": True,
+            "detail": "交易中（午盘）",
+            "next_trading_day": now.date().isoformat(),
+        }
+    return {
+        "status": "post_market",
+        "is_trading": False,
+        "detail": "已收盘",
+        "next_trading_day": _next_trading_day(now).isoformat(),
+    }
 
 
 def _next_trading_day(now: datetime) -> date:
@@ -65,10 +92,16 @@ def get_price_limit(symbol: str) -> float:
     return LIMIT_MAIN
 
 
-def validate_trade(symbol: str, side: str, quantity: int, price: float,
-                   prev_close: float, balance: float | None = None,
-                   position_qty: int = 0, position_buy_date: str | None = None
-                   ) -> tuple[bool, str | None]:
+def validate_trade(
+    symbol: str,
+    side: str,
+    quantity: int,
+    price: float,
+    prev_close: float,
+    balance: float | None = None,
+    position_qty: int = 0,
+    position_buy_date: str | None = None,
+) -> tuple[bool, str | None]:
     """
     校验交易合法性。返回 (是否合法, 错误信息)
     """
@@ -83,9 +116,9 @@ def validate_trade(symbol: str, side: str, quantity: int, price: float,
     limit_up = round(prev_close * (1 + limit), 2)
     limit_down = round(prev_close * (1 - limit), 2)
     if price > limit_up:
-        return False, f"买入价{price}超过涨停价{limit_up}（+{limit*100:.0f}%）"
+        return False, f"买入价{price}超过涨停价{limit_up}（+{limit * 100:.0f}%）"
     if price < limit_down:
-        return False, f"卖出价{price}低于跌停价{limit_down}（-{limit*100:.0f}%）"
+        return False, f"卖出价{price}低于跌停价{limit_down}（-{limit * 100:.0f}%）"
 
     # 3. 价格偏离检查（超过5%偏离提示风险）
     deviation = abs(price - prev_close) / prev_close if prev_close > 0 else 0
@@ -123,8 +156,13 @@ def suggest_lot_size(balance: float, price: float, max_pct: float = 0.95) -> int
     return max(lots, 100)
 
 
-def estimate_executable_price(current_price: float, prev_close: float, volatility: float,
-                               direction: str = "BUY", confidence: float = 0.9) -> dict:
+def estimate_executable_price(
+    current_price: float,
+    prev_close: float,
+    volatility: float,
+    direction: str = "BUY",
+    confidence: float = 0.9,
+) -> dict:
     """
     预估一分钟内高概率成交价。
     - direction: "BUY" → 略高于当前价（确保买入）；"SELL" → 略低于当前价（确保卖出）
@@ -134,10 +172,10 @@ def estimate_executable_price(current_price: float, prev_close: float, volatilit
     adj = volatility * 0.01 * confidence
     if direction == "BUY":
         price = round(current_price * (1 + adj * 0.3), 2)  # 买入价轻微上浮
-        note = f"基于当前价{current_price}、波动率{volatility}%，预估买入价{price}，1分钟内成交概率约{int(confidence*100)}%"
+        note = f"基于当前价{current_price}、波动率{volatility}%，预估买入价{price}，1分钟内成交概率约{int(confidence * 100)}%"
     else:
         price = round(current_price * (1 - adj * 0.3), 2)  # 卖出价轻微下浮
-        note = f"基于当前价{current_price}、波动率{volatility}%，预估卖出价{price}，1分钟内成交概率约{int(confidence*100)}%"
+        note = f"基于当前价{current_price}、波动率{volatility}%，预估卖出价{price}，1分钟内成交概率约{int(confidence * 100)}%"
 
     # 确保不超出涨跌停
     limit = get_price_limit("")

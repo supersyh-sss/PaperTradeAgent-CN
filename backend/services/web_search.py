@@ -10,6 +10,7 @@
 
 约束：只做轻量 HTML 抓取与解析，不引入重型爬虫依赖；超时短、失败静默降级。
 """
+
 import logging
 import re
 from html import unescape
@@ -59,14 +60,16 @@ def _parse_ddg_html(html_text: str, limit: int) -> list:
         snippet = unescape(_strip_tags(m.group(3)))
         if not title or not raw_url:
             continue
-        items.append({
-            "title": title,
-            "url": raw_url,
-            "source": "web",
-            "summary": snippet or title,
-            "time": "",
-            "symbols": [],
-        })
+        items.append(
+            {
+                "title": title,
+                "url": raw_url,
+                "source": "web",
+                "summary": snippet or title,
+                "time": "",
+                "symbols": [],
+            }
+        )
         if len(items) >= limit:
             break
     return items

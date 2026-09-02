@@ -5,6 +5,7 @@
 
 不进入 CI（依赖 API、有 token 成本、结果带随机性），用于定期质量回归。
 """
+
 import asyncio
 import sys
 from pathlib import Path
@@ -91,10 +92,14 @@ async def run_quality_eval() -> tuple:
         r = await judge_answer_quality(question, answer, refs)
         overall = r.get("overall", 0)
         (good_scores if label == "good" else bad_scores).append(overall)
-        print(f"  [{label}] overall={overall}  {question!r} → {r.get('reason', '')[:40]}")
+        print(
+            f"  [{label}] overall={overall}  {question!r} → {r.get('reason', '')[:40]}"
+        )
     avg_good = sum(good_scores) / len(good_scores) if good_scores else 0
     avg_bad = sum(bad_scores) / len(bad_scores) if bad_scores else 0
-    print(f"[输出质量 LLM-as-judge] 好样本均分 {avg_good:.1f} vs 坏样本均分 {avg_bad:.1f}")
+    print(
+        f"[输出质量 LLM-as-judge] 好样本均分 {avg_good:.1f} vs 坏样本均分 {avg_bad:.1f}"
+    )
     return avg_good, avg_bad
 
 

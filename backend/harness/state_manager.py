@@ -17,9 +17,10 @@ logger = logging.getLogger(__name__)
 @dataclass
 class StateCheckpoint:
     """状态检查点 — 用于回滚和审计"""
+
     checkpoint_id: str
     agent_name: str
-    phase: str           # "before" | "after"
+    phase: str  # "before" | "after"
     state_snapshot: dict[str, Any] = field(default_factory=dict)
     timestamp: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -33,7 +34,7 @@ class StateCheckpoint:
 
 class StateManager:
     """状态管理器 — 将 LLM 与状态完全解耦
-    
+
     LLM 视角：每次调用都是全新的，仅需关注上下文注入
     Harness 视角：全权管理状态生命周期（创建/更新/检查点/回滚）
     """
@@ -48,7 +49,9 @@ class StateManager:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def init_session(self, session_id: str, initial_state: dict[str, Any]) -> dict[str, Any]:
+    def init_session(
+        self, session_id: str, initial_state: dict[str, Any]
+    ) -> dict[str, Any]:
         """初始化会话状态"""
         self._sessions[session_id] = dict(initial_state)
         return self._sessions[session_id]
@@ -75,14 +78,17 @@ class StateManager:
         return dict(self._sessions.get(session_id, {}))
 
     def checkpoint(
-        self, session_id: str, agent_name: str, phase: str,
+        self,
+        session_id: str,
+        agent_name: str,
+        phase: str,
         metadata: dict | None = None,
     ) -> StateCheckpoint | None:
         """创建状态检查点"""
         state = self.snapshot(session_id)
         if state is None:
             return None
-        
+
         ck = StateCheckpoint(
             checkpoint_id="",
             agent_name=agent_name,
@@ -90,15 +96,17 @@ class StateManager:
             state_snapshot=state,
             metadata=metadata or {},
         )
-        
+
         if session_id not in self._checkpoints:
             self._checkpoints[session_id] = []
         self._checkpoints[session_id].append(ck)
-        
+
         # Cleanup old checkpoints
         if len(self._checkpoints[session_id]) > self._max_checkpoints:
-            self._checkpoints[session_id] = self._checkpoints[session_id][-self._max_checkpoints:]
-        
+            self._checkpoints[session_id] = self._checkpoints[session_id][
+                -self._max_checkpoints :
+            ]
+
         logger.debug(f"Checkpoint [{ck.checkpoint_id}]: {agent_name}/{phase}")
         return ck
 

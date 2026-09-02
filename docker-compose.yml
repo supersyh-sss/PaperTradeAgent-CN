@@ -1,0 +1,32 @@
+# 一键体验：docker compose up --build
+# 前端  http://localhost:5173（nginx，/api 反代到后端）
+# 后端  http://localhost:8001/docs
+services:
+  backend:
+    build: .
+    image: papertrade-backend:latest
+    container_name: papertrade-backend
+    # .env 中的 DEEPSEEK_API_KEY 等机密通过该方式注入，不写入镜像
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DB_PATH: /app/backend/database/paper_trade.db
+    ports:
+      - "8001:8001"
+    volumes:
+      # SQLite 数据 / K线缓存 / 向量模型缓存持久化到宿主机，容器重建不丢
+      - ./backend/database:/app/backend/database
+      - ./data:/app/data
+      - ./backend/cache:/app/backend/cache
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    image: papertrade-frontend:latest
+    container_name: papertrade-frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    restart: unless-stopped

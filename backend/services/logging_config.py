@@ -8,6 +8,7 @@
 
 trace_id 通过 contextvars 在线程/协程间传递，无需显式传参。
 """
+
 import json
 import logging
 import sys
@@ -93,15 +94,19 @@ def configure_root_logger(level: int = logging.INFO, json_format: bool = True):
     else:
         # 开发环境使用可读格式
         handler = logging.StreamHandler(sys.stdout)
-        handler.setFormatter(logging.Formatter(
-            "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-            datefmt="%H:%M:%S",
-        ))
+        handler.setFormatter(
+            logging.Formatter(
+                "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+                datefmt="%H:%M:%S",
+            )
+        )
         root.addHandler(handler)
 
 
 # 便捷函数：异常时记录 log
-def log_exception(logger: logging.Logger, msg: str, exc: Exception, level: str = "error"):
+def log_exception(
+    logger: logging.Logger, msg: str, exc: Exception, level: str = "error"
+):
     """统一异常记录格式"""
     log_func = getattr(logger, level, logger.error)
     log_func(f"{msg}: {type(exc).__name__}: {exc}", exc_info=True)

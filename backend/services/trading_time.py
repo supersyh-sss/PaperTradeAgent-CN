@@ -1,4 +1,5 @@
 """交易时间判断器 — 含集合竞价阶段"""
+
 from datetime import date, datetime, time, timedelta, timezone
 from enum import Enum
 from typing import ClassVar
@@ -14,21 +15,22 @@ CHINA_TZ = timezone(timedelta(hours=8))
 
 class AuctionPhase(Enum):
     """集合竞价阶段枚举"""
-    CLOSED = "closed"                      # 非竞价时段
-    AUCTION_ORDER = "auction_order"        # 9:15-9:20 竞价委托（可挂可撤）
-    AUCTION_LOCKED = "auction_locked"      # 9:20-9:25 竞价锁定（可挂不可撤）
+
+    CLOSED = "closed"  # 非竞价时段
+    AUCTION_ORDER = "auction_order"  # 9:15-9:20 竞价委托（可挂可撤）
+    AUCTION_LOCKED = "auction_locked"  # 9:20-9:25 竞价锁定（可挂不可撤）
     AUCTION_MATCHING = "auction_matching"  # 9:25 竞价撮合瞬间（产生开盘价）
-    TRANSITION = "transition"              # 9:25-9:30 过渡期（可挂可撤，排队等开盘）
+    TRANSITION = "transition"  # 9:25-9:30 过渡期（可挂可撤，排队等开盘）
 
 
 class TradingTimeChecker:
     """A股交易时间判断（接入中国法定节假日历）+ 集合竞价阶段"""
 
     # ── 集合竞价时间点 ──
-    AUCTION_START = time(9, 15)          # 9:15 集合竞价开始
-    AUCTION_LOCK_TIME = time(9, 20)      # 9:20 起不可撤单
-    AUCTION_END = time(9, 25)            # 9:25 集合竞价撮合
-    TRANSITION_END = time(9, 30)         # 9:30 连续竞价开始
+    AUCTION_START = time(9, 15)  # 9:15 集合竞价开始
+    AUCTION_LOCK_TIME = time(9, 20)  # 9:20 起不可撤单
+    AUCTION_END = time(9, 25)  # 9:25 集合竞价撮合
+    TRANSITION_END = time(9, 30)  # 9:30 连续竞价开始
 
     # ── 连续竞价时段 ──
     MORNING_START = time(9, 30)
@@ -38,13 +40,24 @@ class TradingTimeChecker:
 
     # 兜底：当 chinese-calendar 不支持的年份或导入失败时使用
     HOLIDAYS_FALLBACK: ClassVar[set[str]] = {
-        "2026-01-01", "2026-01-02",  # 元旦
-        "2026-02-16", "2026-02-17", "2026-02-18", "2026-02-19", "2026-02-20",  # 春节
+        "2026-01-01",
+        "2026-01-02",  # 元旦
+        "2026-02-16",
+        "2026-02-17",
+        "2026-02-18",
+        "2026-02-19",
+        "2026-02-20",  # 春节
         "2026-04-06",  # 清明节
-        "2026-05-01", "2026-05-04", "2026-05-05",  # 劳动节
+        "2026-05-01",
+        "2026-05-04",
+        "2026-05-05",  # 劳动节
         "2026-06-22",  # 端午节
         "2026-09-28",  # 中秋节
-        "2026-10-01", "2026-10-02", "2026-10-05", "2026-10-06", "2026-10-07",  # 国庆节
+        "2026-10-01",
+        "2026-10-02",
+        "2026-10-05",
+        "2026-10-06",
+        "2026-10-07",  # 国庆节
     }
 
     # chinese_calendar 返回的英文节日名 -> 中文名
@@ -102,8 +115,10 @@ class TradingTimeChecker:
         if not cls.is_trading_day():
             return False
         now_time = cls._now().time()
-        return (cls.MORNING_START <= now_time <= cls.MORNING_END or
-                cls.AFTERNOON_START <= now_time <= cls.AFTERNOON_END)
+        return (
+            cls.MORNING_START <= now_time <= cls.MORNING_END
+            or cls.AFTERNOON_START <= now_time <= cls.AFTERNOON_END
+        )
 
     @classmethod
     def get_next_trading_day(cls, after: date | None = None) -> datetime:
@@ -148,7 +163,11 @@ class TradingTimeChecker:
     def is_auction_cancellable(cls) -> bool:
         """当前是否可以撤单：竞价委托期 + 过渡期可撤，竞价锁定期不可撤"""
         phase = cls.get_auction_phase()
-        return phase in (AuctionPhase.AUCTION_ORDER, AuctionPhase.TRANSITION, AuctionPhase.CLOSED)
+        return phase in (
+            AuctionPhase.AUCTION_ORDER,
+            AuctionPhase.TRANSITION,
+            AuctionPhase.CLOSED,
+        )
 
     @classmethod
     def is_order_acceptable(cls) -> bool:
@@ -157,8 +176,9 @@ class TradingTimeChecker:
             return False
         now_time = cls._now().time()
         # 9:15-11:30 + 13:00-15:00 均接受订单（含竞价、连续竞价）
-        return ((cls.AUCTION_START <= now_time <= cls.MORNING_END) or
-                (cls.AFTERNOON_START <= now_time <= cls.AFTERNOON_END))
+        return (cls.AUCTION_START <= now_time <= cls.MORNING_END) or (
+            cls.AFTERNOON_START <= now_time <= cls.AFTERNOON_END
+        )
 
     @classmethod
     def auction_active_info(cls) -> dict:
@@ -181,19 +201,27 @@ class TradingTimeChecker:
 
         phase_config = {
             AuctionPhase.AUCTION_ORDER: {
-                "can_order": True, "can_cancel": True, "can_match": False,
+                "can_order": True,
+                "can_cancel": True,
+                "can_match": False,
                 "description": "集合竞价委托期（9:15-9:20）— 可挂单可撤单，订单累积不成交",
             },
             AuctionPhase.AUCTION_LOCKED: {
-                "can_order": True, "can_cancel": False, "can_match": False,
+                "can_order": True,
+                "can_cancel": False,
+                "can_match": False,
                 "description": "集合竞价锁定期（9:20-9:25）— 可挂单不可撤单，9:25 统一撮合",
             },
             AuctionPhase.AUCTION_MATCHING: {
-                "can_order": False, "can_cancel": False, "can_match": True,
+                "can_order": False,
+                "can_cancel": False,
+                "can_match": True,
                 "description": "集合竞价撮合（9:25）— 产生开盘价",
             },
             AuctionPhase.TRANSITION: {
-                "can_order": True, "can_cancel": True, "can_match": False,
+                "can_order": True,
+                "can_cancel": True,
+                "can_match": False,
                 "description": "开盘过渡期（9:25-9:30）— 可挂单可撤单，订单排队等9:30连续竞价",
             },
         }
@@ -259,8 +287,18 @@ class TradingTimeChecker:
         是否休市、当前交易时段、下一交易日。所有 Agent 共用此描述，避免时间信息残缺。
         """
         now = cls._now()
-        weekday_cn = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"][now.weekday()]
-        date_text = now.strftime("%Y年%m月%d日 %H:%M")
+        weekday_cn = [
+            "星期一",
+            "星期二",
+            "星期三",
+            "星期四",
+            "星期五",
+            "星期六",
+            "星期日",
+        ][now.weekday()]
+        # 不用 strftime 拼中文后缀：Windows 非中文 locale 下 C 层 strftime 无法
+        # 编码 CJK（UnicodeEncodeError），纯 f-string 与 locale 无关
+        date_text = f"{now.year}年{now.month:02d}月{now.day:02d}日 {now.hour:02d}:{now.minute:02d}"
 
         # 法定节假日名称：优先 chinese_calendar，缺失时用 fallback 集合兜底
         holiday_name = ""

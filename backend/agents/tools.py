@@ -75,7 +75,9 @@ async def get_kline_data(symbol: str, period: str = "day", count: int = 60) -> d
         "symbol": code,
         "period": period,
         "data_count": len(kline_data) if isinstance(kline_data, list) else 0,
-        "latest_price": kline_data[-1].get("close") if isinstance(kline_data, list) and kline_data else None,
+        "latest_price": kline_data[-1].get("close")
+        if isinstance(kline_data, list) and kline_data
+        else None,
         "indicators": indicators,
     }
 
@@ -232,7 +234,9 @@ async def get_watchlist_tool(user_id: str) -> dict:
         return {"watchlist": [], "count": 0, "message": "自选列表为空"}
 
     return {
-        "watchlist": [{"symbol": w.get("symbol"), "name": w.get("name")} for w in watchlist],
+        "watchlist": [
+            {"symbol": w.get("symbol"), "name": w.get("name")} for w in watchlist
+        ],
         "count": len(watchlist),
     }
 
@@ -303,7 +307,9 @@ async def get_order_history(user_id: str) -> dict:
         ],
         "count": len(orders),
         "has_more": has_more,
-        "message": "已返回最近 30 条订单，如需更早记录请说明时间范围" if has_more else "",
+        "message": "已返回最近 30 条订单，如需更早记录请说明时间范围"
+        if has_more
+        else "",
     }
 
 
@@ -325,8 +331,26 @@ AGENT_TOOLS = [
 # 按 Agent 角色分类
 TOOLS_BY_AGENT = {
     "quant_researcher": [get_realtime_quote, get_kline_data],
-    "market_intelligence": [get_stock_news_tool, search_news_tool, web_search_tool, get_market_overview],
-    "trade_executor": [get_realtime_quote, get_user_portfolio, get_account_tool, get_active_orders, get_order_history],
+    "market_intelligence": [
+        get_stock_news_tool,
+        search_news_tool,
+        web_search_tool,
+        get_market_overview,
+    ],
+    "trade_executor": [
+        get_realtime_quote,
+        get_user_portfolio,
+        get_account_tool,
+        get_active_orders,
+        get_order_history,
+    ],
     "portfolio_monitor": [get_user_portfolio, get_account_tool, get_order_history],
-    "response_generator": [get_realtime_quote, get_kline_data, get_market_overview, get_user_portfolio, search_news_tool, web_search_tool],
+    "response_generator": [
+        get_realtime_quote,
+        get_kline_data,
+        get_market_overview,
+        get_user_portfolio,
+        search_news_tool,
+        web_search_tool,
+    ],
 }

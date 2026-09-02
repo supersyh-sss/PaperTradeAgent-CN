@@ -6,13 +6,21 @@
 
 调度循环为单后台 asyncio 任务，随 FastAPI lifespan 启停；执行失败不影响主链路。
 """
+
 import asyncio
 import logging
 from datetime import datetime, timedelta
 
 from . import db
+from .trading_time import CHINA_TZ
 
 logger = logging.getLogger(__name__)
+
+
+# 调度统一使用北京时间 naive 时钟（服务器可能不在东八区）
+def _now_bjt() -> datetime:
+    return datetime.now(CHINA_TZ).replace(tzinfo=None)
+
 
 # 调度循环轮询间隔（秒）
 _POLL_INTERVAL_SECONDS = 15
@@ -24,7 +32,9 @@ def _compute_next_run(task: dict, from_time: datetime) -> str:
         raw = (task.get("daily_time") or "").strip()
         try:
             hh, mm = raw.split(":")
-            target = from_time.replace(hour=int(hh), minute=int(mm), second=0, microsecond=0)
+            target = from_time.replace(
+                hour=int(hh), minute=int(mm), second=0, microsecond=0
+            )
             if target <= from_time:
                 target += timedelta(days=1)
             return target.isoformat(timespec="seconds")
@@ -52,6 +62,7 @@ async def _execute_prompt(user_input: str, user_id: str) -> str:
 
     if not needs_report:
         from ..api.chat import _generate_non_report_reply
+
         return await _generate_non_report_reply(result)
 
     from ..agents.prompts import RESPONSE_GENERATOR_SYSTEM
@@ -64,11 +75,14 @@ async def _execute_prompt(user_input: str, user_id: str) -> str:
         {"role": "user", "content": context},
     ]
     try:
-        return await choose_client(True).chat(messages, temperature=0.5, max_tokens=3072)
+        return await choose_client(True).chat(
+            messages, temperature=0.5, max_tokens=3072
+        )
     except Exception:
         logger.warning("定时任务报告生成失败，使用降级回复", exc_info=True)
         try:
             from ..agents.response_generator import _fallback_response
+
             return _fallback_response(result)
         except Exception:
             return "报告生成失败，请重试。"
@@ -80,7 +94,7 @@ async def run_task_now(task_id: int, user_id: str = "default") -> dict:
     if not task:
         return {"success": False, "message": "任务不存在"}
 
-    now = datetime.now()
+    now = _now_bjt()
     try:
         result = await _execute_prompt(task.get("prompt", ""), user_id)
     except Exception as e:
@@ -89,7 +103,8 @@ async def run_task_now(task_id: int, user_id: str = "default") -> dict:
 
     next_run = _compute_next_run(task, now)
     await db.update_scheduled_task(
-        task_id, user_id,
+        task_id,
+        user_id,
         last_run_at=now.isoformat(timespec="seconds"),
         next_run_at=next_run,
         last_result=result[:4000],
@@ -106,7 +121,9 @@ async def _scheduler_loop():
                 try:
                     await run_task_now(int(task["id"]), task.get("user_id", "default"))
                 except Exception:
-                    logger.warning("定时任务 %s 调度执行失败", task.get("id"), exc_info=True)
+                    logger.warning(
+                        "定时任务 %s 调度执行失败", task.get("id"), exc_info=True
+                    )
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -117,4 +134,5 @@ async def _scheduler_loop():
 def start_scheduler():
     """创建调度循环后台任务，返回 asyncio.Task。"""
     from .task_manager import task_manager
+
     return task_manager.create_task(_scheduler_loop(), name="scheduled_task_scheduler")

@@ -4,6 +4,10 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  optimizeDeps: {
+    // echarts-for-react 为 CJS 产物，强制预构建确保 dev 下 default 互操作一致
+    include: ['echarts-for-react/lib/core'],
+  },
   build: {
     // StockDetail（echarts）为按需懒加载 chunk，不阻塞首屏，放宽阈值避免误报
     chunkSizeWarningLimit: 700,

@@ -1,4 +1,5 @@
 """异步任务管理器：包装 asyncio.create_task，提供错误处理和生命周期管理"""
+
 import asyncio
 import logging
 from collections.abc import Coroutine
@@ -11,7 +12,9 @@ class TaskManager:
     def __init__(self):
         self._tasks: set[asyncio.Task] = set()
 
-    def create_task(self, coro: Coroutine[Any, Any, Any], name: str = "") -> asyncio.Task:
+    def create_task(
+        self, coro: Coroutine[Any, Any, Any], name: str = ""
+    ) -> asyncio.Task:
         """包装 asyncio.create_task：自动追踪任务并在异常时记录日志"""
         task = asyncio.create_task(coro, name=name)
         self._tasks.add(task)
@@ -43,7 +46,9 @@ class TaskManager:
             task.cancel()
         results = await asyncio.gather(*self._tasks, return_exceptions=True)
         for i, result in enumerate(results):
-            if isinstance(result, Exception) and not isinstance(result, asyncio.CancelledError):
+            if isinstance(result, Exception) and not isinstance(
+                result, asyncio.CancelledError
+            ):
                 logger.warning(f"取消任务时出现异常: {result}")
         logger.info("所有后台任务已清理完毕")
 

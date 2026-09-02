@@ -11,6 +11,7 @@
 
 扩展（后续）：接入 LLM 分类结果、断言 needs_report、纳入 CI 门禁。
 """
+
 import sys
 from pathlib import Path
 
@@ -20,10 +21,26 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 # 覆盖交易/行情/持仓/自选/闲聊五类，含易误判样本
 GOLDEN = [
     # ── 交易指令 ──
-    ("买入100股平安银行", "trade", ["quant_researcher", "market_intelligence", "trade_executor"]),
-    ("卖出200股茅台", "trade", ["quant_researcher", "market_intelligence", "trade_executor"]),
-    ("下单买入招商银行", "trade", ["quant_researcher", "market_intelligence", "trade_executor"]),
-    ("挂单卖出五粮液", "trade", ["quant_researcher", "market_intelligence", "trade_executor"]),
+    (
+        "买入100股平安银行",
+        "trade",
+        ["quant_researcher", "market_intelligence", "trade_executor"],
+    ),
+    (
+        "卖出200股茅台",
+        "trade",
+        ["quant_researcher", "market_intelligence", "trade_executor"],
+    ),
+    (
+        "下单买入招商银行",
+        "trade",
+        ["quant_researcher", "market_intelligence", "trade_executor"],
+    ),
+    (
+        "挂单卖出五粮液",
+        "trade",
+        ["quant_researcher", "market_intelligence", "trade_executor"],
+    ),
     # ── 市场 / 行情 ──
     ("今天大盘怎么样", "market", ["market_intelligence"]),
     ("查看行情", "market", ["market_intelligence"]),
@@ -55,6 +72,7 @@ GOLDEN = [
 
 def _expected_agents(intent: str) -> list:
     from backend.agents.chief_strategist import _INTENT_PLAN_TEMPLATE
+
     return [s["agent"] for s in _INTENT_PLAN_TEMPLATE.get(intent, [])]
 
 
@@ -66,18 +84,24 @@ def evaluate() -> dict:
 
     for text, exp_intent, exp_agents in GOLDEN:
         got_intent = _recover_from_chat(text)
-        got_agents = _expected_agents(got_intent) if got_intent not in ("chat", "watchlist", "cancel_order") else []
+        got_agents = (
+            _expected_agents(got_intent)
+            if got_intent not in ("chat", "watchlist", "cancel_order")
+            else []
+        )
 
         intent_ok = got_intent == exp_intent
         agents_ok = got_agents == exp_agents
         if intent_ok and agents_ok:
             correct += 1
         else:
-            failures.append({
-                "input": text,
-                "expected": (exp_intent, exp_agents),
-                "got": (got_intent, got_agents),
-            })
+            failures.append(
+                {
+                    "input": text,
+                    "expected": (exp_intent, exp_agents),
+                    "got": (got_intent, got_agents),
+                }
+            )
 
     return {
         "total": len(GOLDEN),
@@ -92,7 +116,9 @@ def main():
     print("=" * 72)
     print("L5 意图识别安全网评估结果")
     print("=" * 72)
-    print(f"总样本: {result['total']}  正确: {result['correct']}  准确率: {result['accuracy']*100:.1f}%")
+    print(
+        f"总样本: {result['total']}  正确: {result['correct']}  准确率: {result['accuracy'] * 100:.1f}%"
+    )
     print("-" * 72)
     if result["failures"]:
         print("失败样本:")

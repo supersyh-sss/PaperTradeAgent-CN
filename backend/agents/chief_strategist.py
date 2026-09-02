@@ -1,4 +1,5 @@
 """首席策略官 - LLM 自主意图识别 + 任务拆解（LLM 主导分类，关键词仅作安全网兜底）"""
+
 import logging
 import re
 import time as _time
@@ -20,9 +21,14 @@ from .utils import safe_int
 
 # 意图中文映射
 INTENT_CN_MAP = {
-    "analyze": "分析", "trade": "交易", "query": "查询",
-    "portfolio": "持仓", "watchlist": "自选股", "chat": "对话",
-    "market": "市场概览", "cancel_order": "撤单",
+    "analyze": "分析",
+    "trade": "交易",
+    "query": "查询",
+    "portfolio": "持仓",
+    "watchlist": "自选股",
+    "chat": "对话",
+    "market": "市场概览",
+    "cancel_order": "撤单",
 }
 
 AGENT_CN_MAP = {
@@ -56,7 +62,9 @@ _INTENT_PLAN_TEMPLATE = {
 }
 
 
-def _build_plan(user_input: str, intent: str, needed_agents: list, reasoning: str) -> dict:
+def _build_plan(
+    user_input: str, intent: str, needed_agents: list, reasoning: str
+) -> dict:
     """构建结构化任务计划（L3 可解释规划）"""
     steps = []
     for a in needed_agents:
@@ -87,6 +95,7 @@ async def chief_strategist_node(state: AgentState) -> AgentState:
 
     # 1c. 注入当前交易时间状态（非交易流也需感知）
     from ..services.trading_time import TradingTimeChecker
+
     state["is_trading_time"] = TradingTimeChecker.is_trading_time()
 
     # 2. 本地规则提取股票代码（辅助 LLM，不作为分类依据）
@@ -95,8 +104,8 @@ async def chief_strategist_node(state: AgentState) -> AgentState:
     # 3. LLM 自主意图识别 — 唯一分类路径
     trade_side = None
     trade_quantity = 0
-    direct_agent = None                             # 直接寻址目标
-    mentioned_agents = ""                           # 多Agent寻址列表
+    direct_agent = None  # 直接寻址目标
+    mentioned_agents = ""  # 多Agent寻址列表
     try:
         user_prompt = await _build_user_prompt(user_input, watchlist, state, user_id)
 
@@ -104,7 +113,9 @@ async def chief_strategist_node(state: AgentState) -> AgentState:
             {"role": "system", "content": CHIEF_STRATEGIST_SYSTEM},
             {"role": "user", "content": user_prompt},
         ]
-        llm_result = await deepseek.chat_json(messages, temperature=0.1, max_tokens=1024)
+        llm_result = await deepseek.chat_json(
+            messages, temperature=0.1, max_tokens=1024
+        )
 
         intent = llm_result.get("intent", "chat")
 
@@ -140,10 +151,17 @@ async def chief_strategist_node(state: AgentState) -> AgentState:
             chat_reply = ""
 
         state["needs_report"] = needs_report
-        state["needed_agents"] = needed_agents if isinstance(needed_agents, list) else []
+        state["needed_agents"] = (
+            needed_agents if isinstance(needed_agents, list) else []
+        )
 
         # L3 任务规划：LLM 未给出 needed_agents 时，用"最小计划模板"兜底（而非硬编码路由）
-        if not state["needed_agents"] and intent not in ("chat", "watchlist", "direct_agent", "cancel_order"):
+        if not state["needed_agents"] and intent not in (
+            "chat",
+            "watchlist",
+            "direct_agent",
+            "cancel_order",
+        ):
             steps = _INTENT_PLAN_TEMPLATE.get(intent, [])
             state["needed_agents"] = [s["agent"] for s in steps]
         # When needs_report=false, always use chat_reply — agents provide supplemental info
@@ -160,7 +178,9 @@ async def chief_strategist_node(state: AgentState) -> AgentState:
                 "message": f"确认撤销以下 {len(cancel_order_ids)} 笔委托吗？",
                 "data": {"order_ids": [str(x) for x in cancel_order_ids]},
             }
-            state["chief_response"] = f"已识别到 {len(cancel_order_ids)} 笔待撤销委托，请确认是否继续。"
+            state["chief_response"] = (
+                f"已识别到 {len(cancel_order_ids)} 笔待撤销委托，请确认是否继续。"
+            )
             intent = "cancel_order"
             needs_report = False
             state["needs_report"] = False
@@ -174,7 +194,12 @@ async def chief_strategist_node(state: AgentState) -> AgentState:
             # Validate LLM-identified stock via Tencent API
             try:
                 from ..services.tencent_api import tencent_api
-                api_symbol = tencent_api._make_code(symbol) if not symbol.startswith(("sh", "sz", "bj")) else symbol
+
+                api_symbol = (
+                    tencent_api._make_code(symbol)
+                    if not symbol.startswith(("sh", "sz", "bj"))
+                    else symbol
+                )
                 rt_data = await tencent_api.get_realtime([api_symbol])
                 pure_sym = pure_code(symbol)
                 if rt_data and pure_sym in rt_data and rt_data[pure_sym].get("name"):
@@ -204,7 +229,10 @@ async def chief_strategist_node(state: AgentState) -> AgentState:
             if not watchlist_action:
                 if any(kw in user_input for kw in ("添加", "加自选", "加入", "关注")):
                     watchlist_action = "add"
-                elif any(kw in user_input for kw in ("移除", "删除", "删", "取消关注", "移出")):
+                elif any(
+                    kw in user_input
+                    for kw in ("移除", "删除", "删", "取消关注", "移出")
+                ):
                     watchlist_action = "remove"
             if watchlist_action in ("add", "remove"):
                 _code = pure_code(symbol)
@@ -213,26 +241,37 @@ async def chief_strategist_node(state: AgentState) -> AgentState:
                     "message": f"确认{'添加' if watchlist_action == 'add' else '移除'}自选股 {name or _code}({_code}) 吗？",
                     "data": {"symbol": _code, "name": name or _code},
                 }
-                state["chief_response"] = f"将{'添加' if watchlist_action == 'add' else '移除'} {name or _code}({_code})，请确认是否继续。"
+                state["chief_response"] = (
+                    f"将{'添加' if watchlist_action == 'add' else '移除'} {name or _code}({_code})，请确认是否继续。"
+                )
                 intent = "watchlist"
                 needs_report = False
                 state["needs_report"] = False
                 state["needed_agents"] = []
 
         # 查看自选股列表：确定性展示（避免 LLM 因盘前/无价格而误判"没数据"）
-        if intent == "watchlist" and not symbol and watchlist_action not in ("add", "remove"):
+        if (
+            intent == "watchlist"
+            and not symbol
+            and watchlist_action not in ("add", "remove")
+        ):
             if watchlist:
                 state["chief_response"] = "当前自选股：\n" + "\n".join(
-                    f"  {w.get('name', '')}（{w.get('symbol', '')}）" for w in watchlist[:20]
+                    f"  {w.get('name', '')}（{w.get('symbol', '')}）"
+                    for w in watchlist[:20]
                 )
             else:
-                state["chief_response"] = "你的自选股列表还是空的，可以对某只股票说「加入自选」来添加。"
+                state["chief_response"] = (
+                    "你的自选股列表还是空的，可以对某只股票说「加入自选」来添加。"
+                )
             needs_report = False
             state["needs_report"] = False
             state["needed_agents"] = []
 
         # 板块/行业/概念查询安全网：未识别到具体股票时，统一路由到市场情报
-        if not symbol and any(kw in user_input for kw in ("板块", "行业", "概念", "题材")):
+        if not symbol and any(
+            kw in user_input for kw in ("板块", "行业", "概念", "题材")
+        ):
             intent = "market"
             needed_agents = ["market_intelligence"]
             needs_report = False
@@ -242,8 +281,14 @@ async def chief_strategist_node(state: AgentState) -> AgentState:
             state["chief_response"] = ""
 
         # 持仓/盈亏分析安全网：无具体股票且非交易动作时，统一路由到持仓风控
-        if (not symbol and intent in ("chat", "analyze", "query")
-                and any(kw in user_input for kw in ("持仓", "仓位", "亏损", "盈亏", "账户", "我的股票"))):
+        if (
+            not symbol
+            and intent in ("chat", "analyze", "query")
+            and any(
+                kw in user_input
+                for kw in ("持仓", "仓位", "亏损", "盈亏", "账户", "我的股票")
+            )
+        ):
             intent = "portfolio"
             needed_agents = ["portfolio_monitor"]
             needs_report = False
@@ -270,12 +315,16 @@ async def chief_strategist_node(state: AgentState) -> AgentState:
     except Exception as e:
         # Fallback: try once more with simpler prompt (no watchlist, no history)
         try:
-            simple_prompt = f"User: {user_input}\nTime: {_time.strftime('%Y-%m-%d %H:%M')} Beijing"
+            simple_prompt = (
+                f"User: {user_input}\nTime: {_time.strftime('%Y-%m-%d %H:%M')} Beijing"
+            )
             messages_simple = [
                 {"role": "system", "content": CHIEF_STRATEGIST_SYSTEM},
                 {"role": "user", "content": simple_prompt},
             ]
-            llm_result = await deepseek.chat_json(messages_simple, temperature=0.1, max_tokens=1024)
+            llm_result = await deepseek.chat_json(
+                messages_simple, temperature=0.1, max_tokens=1024
+            )
             intent = llm_result.get("intent", "chat")
             needed_agents = llm_result.get("needed_agents", [])
             needs_report = llm_result.get("needs_report", False)
@@ -287,11 +336,17 @@ async def chief_strategist_node(state: AgentState) -> AgentState:
                 needs_report = False
                 chat_reply = ""
             state["needs_report"] = needs_report
-            state["needed_agents"] = needed_agents if isinstance(needed_agents, list) else []
+            state["needed_agents"] = (
+                needed_agents if isinstance(needed_agents, list) else []
+            )
             state["chief_response"] = chat_reply if not needs_report else ""
-            state["strategy_direction"] = f"LLM retry OK: {llm_result.get('reasoning_chain', '')}"
+            state["strategy_direction"] = (
+                f"LLM retry OK: {llm_result.get('reasoning_chain', '')}"
+            )
         except Exception as e2:
-            logger.error(f"Chief LLM failed (both attempts): first={str(e)[:100]}, retry={str(e2)[:100]}")
+            logger.error(
+                f"Chief LLM failed (both attempts): first={str(e)[:100]}, retry={str(e2)[:100]}"
+            )
             intent = "chat"
             # Preserve direct_agent detection even in double-fail
             if direct_agent:
@@ -302,7 +357,9 @@ async def chief_strategist_node(state: AgentState) -> AgentState:
             else:
                 state["needs_report"] = False
                 state["needed_agents"] = []
-                state["chief_response"] = "你好！我是A股模拟交易助手，可以帮你分析股票、模拟交易、查看持仓。请问有什么可以帮你的？"
+                state["chief_response"] = (
+                    "你好！我是A股模拟交易助手，可以帮你分析股票、模拟交易、查看持仓。请问有什么可以帮你的？"
+                )
             state["strategy_direction"] = "LLM调用失败，默认chat回复"
 
     # 4. 校验自选股
@@ -316,7 +373,7 @@ async def chief_strategist_node(state: AgentState) -> AgentState:
     state["in_watchlist"] = in_watchlist
     state["direct_agent"] = direct_agent
     state["mentioned_agents"] = mentioned_agents
-    state["agent_chat_mode"] = (intent == "direct_agent")
+    state["agent_chat_mode"] = intent == "direct_agent"
     state["time_horizon"] = _detect_time_horizon(user_input)
 
     # 确定性覆盖：只有用户明确要求报告时才允许 needs_report=true。
@@ -328,15 +385,27 @@ async def chief_strategist_node(state: AgentState) -> AgentState:
 
     # L3 可解释规划：构建结构化计划（goal/steps/reasoning）并挂载到状态
     state["plan"] = _build_plan(
-        user_input, intent, state.get("needed_agents", []), state.get("strategy_direction", "")
+        user_input,
+        intent,
+        state.get("needed_agents", []),
+        state.get("strategy_direction", ""),
     )
 
     # 5. Emit agent_log
     intent_cn = INTENT_CN_MAP.get(intent, intent)
     needed = state.get("needed_agents", [])
     agent_log_content = _build_chief_strategist_log(
-        user_input, intent, intent_cn, name, symbol, in_watchlist,
-        trade_side, trade_quantity, watchlist, needed, state.get("strategy_direction", "")
+        user_input,
+        intent,
+        intent_cn,
+        name,
+        symbol,
+        in_watchlist,
+        trade_side,
+        trade_quantity,
+        watchlist,
+        needed,
+        state.get("strategy_direction", ""),
     )
     agent_log = {
         "agent": "chief_strategist",
@@ -357,11 +426,16 @@ def _recover_from_chat(user_input: str) -> str:
     text = user_input.strip()
 
     # 明确的撤单指令（先于交易指令，避免「取消挂单」被「挂单」误判为 trade）
-    if any(kw in text for kw in ["撤单", "取消挂单", "撤销委托", "撤销订单", "取消订单", "撤掉"]):
+    if any(
+        kw in text
+        for kw in ["撤单", "取消挂单", "撤销委托", "撤销订单", "取消订单", "撤掉"]
+    ):
         return "cancel_order"
 
     # 明确的交易指令（动词+动作，LLM 极少误判，纯安全网）
-    if any(kw in text for kw in ["买入", "卖出", "下单", "挂单", "开仓", "平仓", "建仓"]):
+    if any(
+        kw in text for kw in ["买入", "卖出", "下单", "挂单", "开仓", "平仓", "建仓"]
+    ):
         return "trade"
 
     # 明确的自选管理指令
@@ -369,12 +443,46 @@ def _recover_from_chat(user_input: str) -> str:
         return "watchlist"
 
     # 市场/行情查询（用户要求看行情/大盘但未指定个股，含板块/行业/概念）
-    if any(kw in text for kw in ["查看行情", "行情", "大盘", "市场走势", "市场怎么样", "今天大盘", "指数", "市场概览", "整体走势", "涨跌情况",
-                                  "看大盘", "看指数", "看行情", "股市行情", "A股整体", "板块", "行业", "概念", "题材"]):
+    if any(
+        kw in text
+        for kw in [
+            "查看行情",
+            "行情",
+            "大盘",
+            "市场走势",
+            "市场怎么样",
+            "今天大盘",
+            "指数",
+            "市场概览",
+            "整体走势",
+            "涨跌情况",
+            "看大盘",
+            "看指数",
+            "看行情",
+            "股市行情",
+            "A股整体",
+            "板块",
+            "行业",
+            "概念",
+            "题材",
+        ]
+    ):
         return "market"
 
     # 持仓查询
-    if any(kw in text for kw in ["查看持仓", "持仓情况", "仓位", "仓位怎么样", "仓位如何", "我的股票", "盈亏", "账户"]):
+    if any(
+        kw in text
+        for kw in [
+            "查看持仓",
+            "持仓情况",
+            "仓位",
+            "仓位怎么样",
+            "仓位如何",
+            "我的股票",
+            "盈亏",
+            "账户",
+        ]
+    ):
         return "portfolio"
 
     return "chat"
@@ -387,7 +495,10 @@ def _detect_analyze_watchlist(user_input: str) -> bool:
     """
     text = (user_input or "").strip()
     has_watch = "自选" in text
-    has_analyze = any(kw in text for kw in ("分析", "走势", "技术", "研判", "评估", "解读", "信号", "扫描"))
+    has_analyze = any(
+        kw in text
+        for kw in ("分析", "走势", "技术", "研判", "评估", "解读", "信号", "扫描")
+    )
     return has_watch and has_analyze
 
 
@@ -403,8 +514,16 @@ def _extract_trade_side(user_input: str) -> str:
 
 # 明确要求生成完整分析报告的触发词（与 prompts.py 中 NEEDS_REPORT 显式触发词保持一致）
 _REPORT_TRIGGERS = (
-    "分析报告", "详细分析", "深度分析", "研判", "全面评估",
-    "写个报告", "出个报告", "全面梳理", "帮我分析一下", "报告",
+    "分析报告",
+    "详细分析",
+    "深度分析",
+    "研判",
+    "全面评估",
+    "写个报告",
+    "出个报告",
+    "全面梳理",
+    "帮我分析一下",
+    "报告",
 )
 
 
@@ -429,8 +548,31 @@ def _is_direct_execute(user_input: str) -> bool:
 
 
 # 交易周期识别：只做短线（分钟级 3-5 分钟）与中长线（日/月/年），不做超短线
-_SHORT_HORIZON_KW = ("短线", "日内", "分钟", "做t", "快进快出", "当日", "当天", "今天买", "今天卖")
-_LONG_HORIZON_KW = ("中长线", "长线", "长期", "波段", "趋势", "持有", "中线", "中长", "价值", "布局", "月", "年")
+_SHORT_HORIZON_KW = (
+    "短线",
+    "日内",
+    "分钟",
+    "做t",
+    "快进快出",
+    "当日",
+    "当天",
+    "今天买",
+    "今天卖",
+)
+_LONG_HORIZON_KW = (
+    "中长线",
+    "长线",
+    "长期",
+    "波段",
+    "趋势",
+    "持有",
+    "中线",
+    "中长",
+    "价值",
+    "布局",
+    "月",
+    "年",
+)
 
 
 def _detect_time_horizon(user_input: str) -> str:
@@ -444,29 +586,37 @@ def _detect_time_horizon(user_input: str) -> str:
     return "long"
 
 
-async def _build_user_prompt(user_input: str, watchlist: list, state: dict, user_id: str) -> str:
+async def _build_user_prompt(
+    user_input: str, watchlist: list, state: dict, user_id: str
+) -> str:
     """构建注入所有上下文的用户提示"""
-    watchlist_str = ", ".join(
-        f"{w.get('name', '')}({w.get('symbol', '')})" for w in watchlist
-    ) if watchlist else "empty"
+    watchlist_str = (
+        ", ".join(f"{w.get('name', '')}({w.get('symbol', '')})" for w in watchlist)
+        if watchlist
+        else "empty"
+    )
 
     # 注入持仓上下文（含账户余额）
     position_lines = []
-    
+
     # 获取账户余额
     try:
         from ..services.db import get_account
+
         account = await get_account(user_id)
         if account:
             bal = account.get("balance", 0)
             ta = account.get("total_assets", 0)
-            position_lines.append(f"\nACCOUNT: 可用现金 {bal:,.2f}元, 总资产 {ta:,.2f}元")
+            position_lines.append(
+                f"\nACCOUNT: 可用现金 {bal:,.2f}元, 总资产 {ta:,.2f}元"
+            )
     except Exception:
         logger.warning("账户余额获取失败", exc_info=True)
-    
+
     positions = state.get("positions", [])
     if positions:
         from ..services.live_prices import get_cached_price, get_live_cache_time
+
         _quote_ts = get_live_cache_time()
         _ts_suffix = f"（行情时间 {_quote_ts}）" if _quote_ts else ""
         position_lines.append(f"\nUSER POSITIONS (LIVE){_ts_suffix}:")
@@ -480,7 +630,9 @@ async def _build_user_prompt(user_input: str, watchlist: list, state: dict, user
                 continue
             cache = get_cached_price(sym)
             cur_price = float(cache.get("last_price", 0)) if cache else 0
-            pnl_pct = ((cur_price - avg) / avg * 100) if avg > 0 and cur_price > 0 else 0
+            pnl_pct = (
+                ((cur_price - avg) / avg * 100) if avg > 0 and cur_price > 0 else 0
+            )
             position_lines.append(
                 f"  {name or sym}({sym}): {qty}股 成本{avg:.3f} "
                 f"现价{f'{cur_price:.3f}' if cur_price > 0 else 'N/A'} "
@@ -497,13 +649,15 @@ async def _build_user_prompt(user_input: str, watchlist: list, state: dict, user
         user_input=user_input,
         watchlist_str=watchlist_str,
         current_time=current_time or "unknown",
-        history_summary=history_summary or "(This is a fresh conversation, no prior context)",
+        history_summary=history_summary
+        or "(This is a fresh conversation, no prior context)",
     )
     user_prompt += "\n" + "\n".join(position_lines)
 
     # 注入今日交易状态（是否休市），供回答"现在几点/今天几号"等时间问题时顺带说明
     try:
         from ..services.trading_time import TradingTimeChecker
+
         user_prompt += f"\nMARKET STATUS: {TradingTimeChecker.market_status_text()}"
     except Exception:
         logger.warning("交易状态注入失败", exc_info=True)
@@ -515,17 +669,28 @@ async def _build_user_prompt(user_input: str, watchlist: list, state: dict, user
             get_cached_indices_time,
             get_market_sentiment,
         )
+
         indices = get_cached_indices()
         sentiment = get_market_sentiment()
         if indices:
             idx_ts = get_cached_indices_time()
             ts_suffix = f"（数据时间 {idx_ts}）" if idx_ts else ""
             idx_lines = [f"\nMARKET INDICES (LIVE){ts_suffix}:"]
-            for s, n in [("sh000001", "上证"), ("sz399001", "深证"), ("sz399006", "创业板"), ("sh000688", "科创50"), ("sh000300", "沪深300")]:
+            for s, n in [
+                ("sh000001", "上证"),
+                ("sz399001", "深证"),
+                ("sz399006", "创业板"),
+                ("sh000688", "科创50"),
+                ("sh000300", "沪深300"),
+            ]:
                 d = indices.get(s, {})
                 if d:
-                    idx_lines.append(f"  {n}: {d.get('price', 'N/A')} ({d.get('change_pct', 0):+.2f}%)")
-            idx_lines.append(f"MARKET SENTIMENT: {sentiment.get('sentiment', 'unknown')} (score: {sentiment.get('score', 0)})")
+                    idx_lines.append(
+                        f"  {n}: {d.get('price', 'N/A')} ({d.get('change_pct', 0):+.2f}%)"
+                    )
+            idx_lines.append(
+                f"MARKET SENTIMENT: {sentiment.get('sentiment', 'unknown')} (score: {sentiment.get('score', 0)})"
+            )
             idx_lines.append(f"INDICES_TREND: {sentiment.get('detail', '')}")
             user_prompt += "\n" + "\n".join(idx_lines)
     except Exception:
@@ -534,9 +699,12 @@ async def _build_user_prompt(user_input: str, watchlist: list, state: dict, user
     # 注入活跃订单（供 LLM 识别撤单目标）
     try:
         from ..services.order_engine import get_active_orders as get_active_orders_oe
+
         active_orders = get_active_orders_oe(user_id)
         if active_orders:
-            order_lines = ["\nACTIVE ORDERS (PENDING/CANCELLABLE - use cancel_order_id to cancel):"]
+            order_lines = [
+                "\nACTIVE ORDERS (PENDING/CANCELLABLE - use cancel_order_id to cancel):"
+            ]
             for o in active_orders:
                 oid = o.get("order_id", "?")
                 osym = o.get("symbol", "?")
@@ -547,7 +715,9 @@ async def _build_user_prompt(user_input: str, watchlist: list, state: dict, user
                 ofilled = o.get("filled_qty", 0)
                 ostat = o.get("status", "")
                 otype = "限价" if o.get("order_type") == "LIMIT" else "市价"
-                order_lines.append(f"  #{oid}: [{otype}] {oside} {oname or osym} {oqty}股@{oprice} (已成交{ofilled}股) [{ostat}]")
+                order_lines.append(
+                    f"  #{oid}: [{otype}] {oside} {oname or osym} {oqty}股@{oprice} (已成交{ofilled}股) [{ostat}]"
+                )
             user_prompt += "\n" + "\n".join(order_lines)
     except Exception:
         logger.warning("上下文注入失败: 活跃订单数据注入异常", exc_info=True)
@@ -555,7 +725,10 @@ async def _build_user_prompt(user_input: str, watchlist: list, state: dict, user
     # 注入最近成交记录（含卖出已实现收益）
     try:
         from ..services.db import get_all_orders_db
-        recent_orders = await get_all_orders_db(user_id, status_filter=["FILLED"], limit=15)
+
+        recent_orders = await get_all_orders_db(
+            user_id, status_filter=["FILLED"], limit=15
+        )
         if recent_orders:
             recent_lines = ["\nRECENT FILLED TRADES (最近成交记录，含卖出已实现收益):"]
             for o in recent_orders:
@@ -567,8 +740,14 @@ async def _build_user_prompt(user_input: str, watchlist: list, state: dict, user
                 oprice = o.get("price", 0)
                 orealized = o.get("realized_pnl")
                 created = o.get("created_at", "")[:16]
-                pnl_str = f" 已实现收益{orealized:+.2f}元" if oside == "卖出" and orealized is not None else ""
-                recent_lines.append(f"  [{created}] {oside} {oname or osym} {oqty}股@{oprice}{pnl_str}")
+                pnl_str = (
+                    f" 已实现收益{orealized:+.2f}元"
+                    if oside == "卖出" and orealized is not None
+                    else ""
+                )
+                recent_lines.append(
+                    f"  [{created}] {oside} {oname or osym} {oqty}股@{oprice}{pnl_str}"
+                )
             user_prompt += "\n" + "\n".join(recent_lines)
     except Exception:
         logger.warning("上下文注入失败: 历史订单数据注入异常", exc_info=True)
@@ -576,15 +755,26 @@ async def _build_user_prompt(user_input: str, watchlist: list, state: dict, user
     return user_prompt
 
 
-def _build_chief_strategist_log(user_input: str, intent: str, intent_cn: str, name: str,
-                                symbol: str, in_watchlist: bool, trade_side: str,
-                                trade_quantity: int, watchlist: list,
-                                needed_agents: list, reasoning: str) -> str:
+def _build_chief_strategist_log(
+    user_input: str,
+    intent: str,
+    intent_cn: str,
+    name: str,
+    symbol: str,
+    in_watchlist: bool,
+    trade_side: str,
+    trade_quantity: int,
+    watchlist: list,
+    needed_agents: list,
+    reasoning: str,
+) -> str:
     """构建首席策略官决策过程日志"""
     lines = [f"收到指令：「{user_input}」", ""]
     lines.append(f"意图识别：{intent_cn}")
     if name and symbol:
-        lines.append(f"目标股票：{name}（{symbol}）{'[在自选股]' if in_watchlist else '[不在自选股]'}")
+        lines.append(
+            f"目标股票：{name}（{symbol}）{'[在自选股]' if in_watchlist else '[不在自选股]'}"
+        )
     if trade_side:
         lines.append(f"交易方向：{'买入' if trade_side == 'BUY' else '卖出'}")
     if trade_quantity:
@@ -609,30 +799,56 @@ def _extract_symbol(text: str, watchlist: list) -> tuple:
     # 1. 尝试用 stock_lookup 全量数据解析（双方向）
     try:
         from ..services.stock_lookup import resolve
+
         # 1a: 全文精确解析
         result = resolve(text)
         if result:
             return result["code"], result["name"]
         # 1b: 递归去掉常见查询词缀后重试（"茅台走势分析" → "茅台"）
         stripped = text
-        _suffixes = ["多少钱", "价格", "多少", "走势分析", "分析", "走势", "怎么样", "情况", "如何",
-                     "基本面", "技术面", "消息面", "跌了多少", "涨了多少"]
-        _prefixes = ["买入", "卖出", "买", "卖", "怎么", "分析", "移除", "帮我看下", "查看", "查"]
+        _suffixes = [
+            "多少钱",
+            "价格",
+            "多少",
+            "走势分析",
+            "分析",
+            "走势",
+            "怎么样",
+            "情况",
+            "如何",
+            "基本面",
+            "技术面",
+            "消息面",
+            "跌了多少",
+            "涨了多少",
+        ]
+        _prefixes = [
+            "买入",
+            "卖出",
+            "买",
+            "卖",
+            "怎么",
+            "分析",
+            "移除",
+            "帮我看下",
+            "查看",
+            "查",
+        ]
         changed = True
         while changed:
             changed = False
             for suffix in _suffixes:
                 if stripped.endswith(suffix):
-                    stripped = stripped[:len(stripped)-len(suffix)].strip()
+                    stripped = stripped[: len(stripped) - len(suffix)].strip()
                     changed = True
                     break
             for prefix in _prefixes:
                 if stripped.startswith(prefix):
-                    stripped = stripped[len(prefix):].strip()
+                    stripped = stripped[len(prefix) :].strip()
                     changed = True
                     break
             # 去掉尾部数字+单位（如"100股"、"100手"）
-            changed2 = re.sub(r'[\d,，]+[股手张]?\s*$', '', stripped)
+            changed2 = re.sub(r"[\d,，]+[股手张]?\s*$", "", stripped)
             if changed2 != stripped and changed2.strip():
                 stripped = changed2.strip()
                 changed = True
@@ -643,6 +859,7 @@ def _extract_symbol(text: str, watchlist: list) -> tuple:
         # 1c: 扫描已知股票名称/简称是否出现在查询文本中（仅 ≥3 字符子串）
         # 避免 2 字符短串误匹配（如"今天"→"今天国际"、"创业"→"西部创业"）
         from ..services.stock_lookup import _get as _get_lookup
+
         ni = _get_lookup().get("name_index", {})
         found_candidates = []
         seen = set()
@@ -658,7 +875,7 @@ def _extract_symbol(text: str, watchlist: list) -> tuple:
             nlen = len(stock_name)
             for win_sz in range(min(nlen, 4), 2, -1):  # win 3-4 chars
                 for i in range(nlen - win_sz + 1):
-                    snippet = stock_name[i:i+win_sz]
+                    snippet = stock_name[i : i + win_sz]
                     if snippet in seen:
                         continue
                     seen.add(snippet)
@@ -672,7 +889,7 @@ def _extract_symbol(text: str, watchlist: list) -> tuple:
         pass
 
     # 2. 代码正则匹配
-    code_pattern = re.compile(r'(?:sh|sz|bj)?(\d{6})')
+    code_pattern = re.compile(r"(?:sh|sz|bj)?(\d{6})")
     match = code_pattern.search(text)
     if match:
         raw = match.group(0).lower()
@@ -682,6 +899,7 @@ def _extract_symbol(text: str, watchlist: list) -> tuple:
             symbol = raw
         try:
             from ..services.stock_lookup import get_name
+
             name = get_name(symbol)
             if name:
                 return symbol, name
@@ -722,7 +940,7 @@ _AGENT_NAME_PATTERNS = [
 
 def _detect_direct_agent(text: str) -> tuple[str, str]:
     """Detect if user is directly addressing a specific agent.
-    
+
     Uses deterministic regex matching (NOT LLM) for reliability.
     Returns (primary_agent, comma_separated_all_agents) or ("", "").
     When multiple agents matched, primary is the first match, and all are returned.
@@ -731,15 +949,15 @@ def _detect_direct_agent(text: str) -> tuple[str, str]:
     identity_agent = _detect_identity_question(text)
     if identity_agent:
         return identity_agent, identity_agent
-    
+
     matched = []
     for pattern, agent_key in _AGENT_NAME_PATTERNS:
         if re.search(pattern, text, re.IGNORECASE) and agent_key not in matched:
             matched.append(agent_key)
-    
+
     if not matched:
         return "", ""
-    
+
     primary = matched[0]
     all_agents = ",".join(matched)
     return primary, all_agents
@@ -747,7 +965,7 @@ def _detect_direct_agent(text: str) -> tuple[str, str]:
 
 def _detect_identity_question(text: str) -> str:
     """Detect if user is questioning the identity of an agent.
-    
+
     Patterns: "你不是XX吧" "你是XX吗" "你真的是XX吗" "你真不是XX?"
     """
     identity_patterns = [

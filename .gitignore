@@ -21,8 +21,17 @@ backend/database/paper_trade.db-wal
 *.db-shm
 *.db-wal
 
-# Embedding model cache
+# Embedding model cache（fastembed 模型文件 + 运行时产生的向量缓存）
 backend/cache/fastembed/
+backend/cache/*.onnx
+
+# K线运行时缓存（git rm -r --cached data/kline_cache 后新增文件不再入库）
+data/kline_cache/
+
+# 运行时 SQLite 数据库（由 init_db 自动创建，禁止入库）
+backend/database/paper_trade.db
+backend/database/paper_trade.db-shm
+backend/database/paper_trade.db-wal
 
 # Frontend
 frontend/node_modules/
@@ -44,3 +53,12 @@ Desktop.ini
 # Temporary files
 *.log
 *.tmp
+
+# Test & tooling caches
+.pytest_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+.hypothesis/
+.mypy_cache/

@@ -24,30 +24,32 @@ current_agent: ContextVar[str] = ContextVar("current_agent", default="")
 
 class MetricType(Enum):
     """度量类型枚举"""
+
     # 任务效能
-    TASK_SUCCESS = auto()           # 任务是否成功
-    TASK_INTENT_ACCURACY = auto()   # 意图识别准确度
-    TOOL_CALL_SUCCESS = auto()      # 工具调用成功
-    TOOL_CALL_FALLBACK = auto()     # 工具调用触发降级
+    TASK_SUCCESS = auto()  # 任务是否成功
+    TASK_INTENT_ACCURACY = auto()  # 意图识别准确度
+    TOOL_CALL_SUCCESS = auto()  # 工具调用成功
+    TOOL_CALL_FALLBACK = auto()  # 工具调用触发降级
     # 服务质量
-    END_TO_END_LATENCY = auto()     # 端到端延迟
-    FIRST_RESPONSE_LATENCY = auto() # 首次响应延迟
-    ERROR_RATE = auto()             # 错误率
-    LLM_CALL_COUNT = auto()         # LLM 调用次数
-    LLM_CALL_ERROR = auto()         # LLM 调用失败
+    END_TO_END_LATENCY = auto()  # 端到端延迟
+    FIRST_RESPONSE_LATENCY = auto()  # 首次响应延迟
+    ERROR_RATE = auto()  # 错误率
+    LLM_CALL_COUNT = auto()  # LLM 调用次数
+    LLM_CALL_ERROR = auto()  # LLM 调用失败
     # 资源效率
-    TOKEN_USAGE = auto()            # Token 消耗
-    TOOL_CALL_COUNT = auto()        # 工具调用次数
-    CONTEXT_SIZE = auto()           # 上下文大小
+    TOKEN_USAGE = auto()  # Token 消耗
+    TOOL_CALL_COUNT = auto()  # 工具调用次数
+    CONTEXT_SIZE = auto()  # 上下文大小
     # 安全合规
-    PERMISSION_DENIED = auto()      # 权限拒绝
-    SAFETY_EVENT = auto()           # 安全事件
-    AUDIT_EVENT = auto()            # 审计事件
+    PERMISSION_DENIED = auto()  # 权限拒绝
+    SAFETY_EVENT = auto()  # 安全事件
+    AUDIT_EVENT = auto()  # 审计事件
 
 
 @dataclass
 class HarnessMetrics:
     """单次会话的度量快照"""
+
     session_id: str = ""
     start_time: float = 0.0
     end_time: float = 0.0
@@ -93,7 +95,10 @@ class HarnessMetrics:
             "session_id": self.session_id,
             "success_rate": self.success_rate,
             "latencies": self.latencies,
-            "llm_calls": {"total": self.llm_calls_total, "errors": self.llm_calls_error},
+            "llm_calls": {
+                "total": self.llm_calls_total,
+                "errors": self.llm_calls_error,
+            },
             "tool_calls": {
                 "total": self.tool_calls_total,
                 "success": self.tool_calls_success,
@@ -101,12 +106,16 @@ class HarnessMetrics:
             },
             "tokens": self.total_tokens,
             "avg_context_size": self.avg_context_size,
-            "safety": {"permission_denied": self.permission_denied, "events": self.safety_events},
+            "safety": {
+                "permission_denied": self.permission_denied,
+                "events": self.safety_events,
+            },
         }
 
 
 class MetricsCollector:
     """全局度量收集器 — 单例"""
+
     _instance = None
     _current: HarnessMetrics | None = None
     _history: ClassVar[list[dict[str, Any]]] = []
@@ -121,7 +130,8 @@ class MetricsCollector:
     def start_session(self, session_id: str = "") -> HarnessMetrics:
         """开始新会话度量"""
         self._current = HarnessMetrics(
-            session_id=session_id or f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            session_id=session_id
+            or f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
             start_time=time.time(),
         )
         return self._current
@@ -131,7 +141,7 @@ class MetricsCollector:
         if not self._current:
             return
         m = self._current
-        
+
         match metric_type:
             case MetricType.TASK_SUCCESS:
                 m.tasks_success += int(value)
@@ -164,7 +174,7 @@ class MetricsCollector:
             self._current.end_time = time.time()
             self._history.append(self._current.to_dict())
             if len(self._history) > self._max_history:
-                self._history = self._history[-self._max_history:]
+                self._history = self._history[-self._max_history :]
             result = self._current
             self._current = None
             logger.info(f"Session metrics: {result.to_dict()}")
@@ -180,7 +190,9 @@ class MetricsCollector:
         total_tokens = sum(h["tokens"] for h in self._history)
         return {
             "sessions": len(self._history),
-            "avg_success_rate": sum(success_rates) / len(success_rates) if success_rates else 0,
+            "avg_success_rate": sum(success_rates) / len(success_rates)
+            if success_rates
+            else 0,
             "total_llm_errors": llm_errors,
             "total_tokens": total_tokens,
             "latest": self._history[-1] if self._history else None,

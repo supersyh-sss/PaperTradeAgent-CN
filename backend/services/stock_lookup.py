@@ -9,7 +9,9 @@ import os
 
 _STOCK_DATA: dict | None = None
 _LOAD_TIME: float = 0
-_DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "data", "a_stock_list.json")
+_DATA_PATH = os.path.join(
+    os.path.dirname(__file__), "..", "..", "data", "a_stock_list.json"
+)
 
 
 def _load() -> dict:
@@ -40,27 +42,42 @@ def resolve(code_or_name: str) -> dict | None:
     """
     data = _get()
     ci = data.get("code_index", {})
-    
+
     # 1. 精确代码匹配
     code = code_or_name.strip()
     if code in ci:
         info = ci[code]
-        return {"code": code, "name": info["name"], "exchange": info["exchange"], "board": info["board"]}
-    
+        return {
+            "code": code,
+            "name": info["name"],
+            "exchange": info["exchange"],
+            "board": info["board"],
+        }
+
     # 2. 精确名称匹配
     ni = data.get("name_index", {})
     if code in ni:
         codes = ni[code]
         if codes:
             info = ci.get(codes[0], {})
-            return {"code": codes[0], "name": code, "exchange": info.get("exchange", ""), "board": info.get("board", "")}
-    
+            return {
+                "code": codes[0],
+                "name": code,
+                "exchange": info.get("exchange", ""),
+                "board": info.get("board", ""),
+            }
+
     # 3. 模糊名称匹配（子串）
     for name, codes in ni.items():
         if code in name:
             info = ci.get(codes[0], {})
-            return {"code": codes[0], "name": name, "exchange": info.get("exchange", ""), "board": info.get("board", "")}
-    
+            return {
+                "code": codes[0],
+                "name": name,
+                "exchange": info.get("exchange", ""),
+                "board": info.get("board", ""),
+            }
+
     return None
 
 
@@ -77,15 +94,22 @@ def search(query: str, limit: int = 10) -> list[dict]:
     q = query.strip()
     results = []
     seen = set()
-    
+
     # 代码前缀匹配
     for code, info in ci.items():
         if q in code:
-            results.append({"code": code, "name": info["name"], "exchange": info["exchange"], "board": info["board"]})
+            results.append(
+                {
+                    "code": code,
+                    "name": info["name"],
+                    "exchange": info["exchange"],
+                    "board": info["board"],
+                }
+            )
             seen.add(code)
             if len(results) >= limit * 2:
                 break
-    
+
     # 名称子串匹配
     ni = data.get("name_index", {})
     for name, codes in ni.items():
@@ -93,13 +117,20 @@ def search(query: str, limit: int = 10) -> list[dict]:
             for code in codes:
                 if code not in seen:
                     info = ci.get(code, {})
-                    results.append({"code": code, "name": name, "exchange": info.get("exchange", ""), "board": info.get("board", "")})
+                    results.append(
+                        {
+                            "code": code,
+                            "name": name,
+                            "exchange": info.get("exchange", ""),
+                            "board": info.get("board", ""),
+                        }
+                    )
                     seen.add(code)
                     if len(results) >= limit * 2:
                         break
         if len(results) >= limit * 2:
             break
-    
+
     return results[:limit]
 
 

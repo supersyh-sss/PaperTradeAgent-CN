@@ -22,7 +22,7 @@ export default function AddWatchlistDialog({ onClose }: AddWatchlistDialogProps)
   const [searching, setSearching] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [highlightIdx, setHighlightIdx] = useState(-1);
-  const { addToWatchlist, watchlist } = useChatStore();
+  const { addToWatchlist, watchlist, watchlistMax } = useChatStore();
 
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -116,8 +116,8 @@ export default function AddWatchlistDialog({ onClose }: AddWatchlistDialogProps)
       setError(`${selected.name}(${selected.code}) 已在自选股列表中`);
       return;
     }
-    if (watchlist.length >= 3) {
-      setError("自选股最多3只，请先移除其他股票");
+    if (watchlist.length >= watchlistMax) {
+      setError(`自选股最多${watchlistMax}只，请先移除其他股票`);
       return;
     }
     try {
@@ -143,11 +143,14 @@ export default function AddWatchlistDialog({ onClose }: AddWatchlistDialogProps)
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm backdrop-enter"
       onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="添加自选股"
     >
       <div
-        className="glass-strong rounded-2xl border border-border shadow-2xl p-5 w-[420px] max-w-[92vw]"
+        className="glass-strong rounded-2xl border border-border shadow-2xl p-5 w-[420px] max-w-[92vw] dialog-enter"
         style={{ boxShadow: "0 24px 60px rgba(0,0,0,0.45)" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -160,14 +163,15 @@ export default function AddWatchlistDialog({ onClose }: AddWatchlistDialogProps)
           </div>
           <button
             onClick={onClose}
-            className="py-1.5 px-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-elevated transition-colors inline-flex items-center"
+            aria-label="关闭"
+            className="icon-btn w-7 h-7 rounded-lg text-text-muted hover:text-text-primary hover:bg-elevated"
           >
             <XIcon size={16} />
           </button>
         </div>
         <p className="text-xs text-text-muted mb-4 ml-9">输入股票代码或名称关键字，自动匹配并添加</p>
 
-{/* 搜索输入 */}
+        {/* 搜索输入 */}
         <div className="relative mb-3">
           <div className="relative">
             <SearchIcon size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted z-10" />
@@ -190,9 +194,9 @@ export default function AddWatchlistDialog({ onClose }: AddWatchlistDialogProps)
             )}
           </div>
 
-{/* 下拉结果 */}
+          {/* 下拉结果 */}
           {dropdownOpen && results.length > 0 && (
-            <div className="absolute left-0 right-0 top-full mt-1 bg-surface-primary border border-border rounded-xl shadow-2xl z-50 max-h-[300px] overflow-y-auto">
+            <div className="absolute left-0 right-0 top-full mt-1 bg-surface-primary border border-border rounded-xl shadow-2xl z-50 max-h-[300px] overflow-y-auto scrollbar-thin">
               {results.map((hit, idx) => {
                 const isHighlighted = idx === highlightIdx;
                 const isSelected = selected?.code === hit.code;
@@ -222,7 +226,7 @@ export default function AddWatchlistDialog({ onClose }: AddWatchlistDialogProps)
           )}
         </div>
 
-{/* 已选确认 */}
+        {/* 已选确认 */}
         {selected && (
           <div className="bg-accent-soft border border-accent/20 rounded-xl px-3 py-3 mb-3 animate-fade-in">
             <div className="flex items-center gap-2">
@@ -239,7 +243,7 @@ export default function AddWatchlistDialog({ onClose }: AddWatchlistDialogProps)
           </div>
         )}
 
-{/* 错误提示 */}
+        {/* 错误提示 */}
         {error && (
           <div className="flex items-start gap-2 text-xs text-danger bg-danger-soft border border-danger/20 rounded-xl px-3 py-2.5 mb-3 animate-fade-in">
             <AlertCircleIcon size={14} className="flex-shrink-0 mt-0.5" />
@@ -247,7 +251,7 @@ export default function AddWatchlistDialog({ onClose }: AddWatchlistDialogProps)
           </div>
         )}
 
-{/* 操作按钮 */}
+        {/* 操作按钮 */}
         <div className="flex gap-2 justify-end">
           <button
             onClick={onClose}

@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 class ChiefOutput(BaseModel):
     intent: str = Field(
         ...,
-        pattern=r"^(chat|query|market|analyze|trade|portfolio|watchlist|cancel_order|direct_agent)$"
+        pattern=r"^(chat|query|market|analyze|trade|portfolio|watchlist|cancel_order|direct_agent)$",
     )
     stock_symbol: str | None = None
     stock_name: str | None = None
@@ -33,7 +33,11 @@ class ChiefOutput(BaseModel):
 
     @property
     def dispatch_agents(self) -> list[str]:
-        return self.needed_agents if self.direct_agent not in self.needed_agents else [self.direct_agent]
+        return (
+            self.needed_agents
+            if self.direct_agent not in self.needed_agents
+            else [self.direct_agent]
+        )
 
 
 class QuantAssessment(BaseModel):

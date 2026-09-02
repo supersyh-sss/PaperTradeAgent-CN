@@ -13,6 +13,7 @@ A股集合竞价规则：
 4. 若多个价格成交量相同，选使未匹配量最小者；仍相同则取中间价
 5. 低于买方出价部分按开盘价成交，高于卖方出价部分也按开盘价成交
 """
+
 import logging
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta, timezone
@@ -30,6 +31,8 @@ _auction_orders: dict[str, list[dict]] = {}
 _last_auction_date: date | None = None
 # 记录上次撮合时间，用于 9:25 触发一次
 _last_auction_match_time: datetime | None = None
+# 记录竞价→连续竞价迁移发生的日期，避免重复迁移
+_last_transition_date: date | None = None
 
 # 竞价阶段产生的开盘价缓存 {symbol: open_price}
 _opening_prices: dict[str, float] = {}
@@ -49,14 +52,18 @@ def register_auction_order(order: dict):
     if uid not in _auction_orders:
         _auction_orders[uid] = []
     _auction_orders[uid].append(order)
-    logger.debug(f"竞价簿注册: {order.get('side')} {order.get('symbol')} x{order.get('quantity')} @{order.get('price')}")
+    logger.debug(
+        f"竞价簿注册: {order.get('side')} {order.get('symbol')} x{order.get('quantity')} @{order.get('price')}"
+    )
 
 
 def unregister_auction_order(order_id: str, user_id: str):
     """从竞价簿移除订单（撤单时调用）"""
     if user_id not in _auction_orders:
         return
-    _auction_orders[user_id] = [o for o in _auction_orders[user_id] if o.get("order_id") != order_id]
+    _auction_orders[user_id] = [
+        o for o in _auction_orders[user_id] if o.get("order_id") != order_id
+    ]
 
 
 def get_auction_orders_for_symbol(symbol: str) -> tuple[list[dict], list[dict]]:
@@ -78,9 +85,7 @@ def get_auction_orders_for_symbol(symbol: str) -> tuple[list[dict], list[dict]]:
 
 
 def determine_opening_price(
-    buy_orders: list[dict],
-    sell_orders: list[dict],
-    prev_close: float = 0
+    buy_orders: list[dict], sell_orders: list[dict], prev_close: float = 0
 ) -> tuple[float | None, list[dict], list[dict], dict]:
     """核心算法：确定集合竞价开盘价。
 
@@ -96,13 +101,18 @@ def determine_opening_price(
         - stats: 撮合统计信息
     """
     if not buy_orders or not sell_orders:
-        return None, [], [], {
-            "matched_volume": 0,
-            "buy_volume": sum(o["quantity"] for o in buy_orders),
-            "sell_volume": sum(o["quantity"] for o in sell_orders),
-            "candidate_prices": 0,
-            "reason": "无买方或无卖方订单，无法形成开盘价",
-        }
+        return (
+            None,
+            [],
+            [],
+            {
+                "matched_volume": 0,
+                "buy_volume": sum(o["quantity"] for o in buy_orders),
+                "sell_volume": sum(o["quantity"] for o in sell_orders),
+                "candidate_prices": 0,
+                "reason": "无买方或无卖方订单，无法形成开盘价",
+            },
+        )
 
     # 收集所有候选价格（委托价格 + prev_close）
     candidate_prices = set()
@@ -127,9 +137,13 @@ def determine_opening_price(
 
     for trial_price in candidate_prices:
         # 买方：委托价 >= trial_price 的累计量
-        cum_buy = sum(o["quantity"] for o in buy_orders if o.get("price", 0) >= trial_price)
+        cum_buy = sum(
+            o["quantity"] for o in buy_orders if o.get("price", 0) >= trial_price
+        )
         # 卖方：委托价 <= trial_price 的累计量
-        cum_sell = sum(o["quantity"] for o in sell_orders if o.get("price", 0) <= trial_price)
+        cum_sell = sum(
+            o["quantity"] for o in sell_orders if o.get("price", 0) <= trial_price
+        )
 
         matched = min(cum_buy, cum_sell)
 
@@ -154,17 +168,26 @@ def determine_opening_price(
                     best_cum_sell = cum_sell
 
     if best_price is None or best_volume == 0:
-        return None, [], [], {
-            "matched_volume": 0,
-            "candidate_prices": len(candidate_prices),
-            "reason": "无可匹配量",
-        }
+        return (
+            None,
+            [],
+            [],
+            {
+                "matched_volume": 0,
+                "candidate_prices": len(candidate_prices),
+                "reason": "无可匹配量",
+            },
+        )
 
     # 按委托价排序分发成交
     # 买方：价格从高到低优先成交
-    sorted_buys = sorted(buy_orders, key=lambda o: (-o.get("price", 0), o.get("created_at", "")))
+    sorted_buys = sorted(
+        buy_orders, key=lambda o: (-o.get("price", 0), o.get("created_at", ""))
+    )
     # 卖方：价格从低到高优先成交
-    sorted_sells = sorted(sell_orders, key=lambda o: (o.get("price", 0), o.get("created_at", "")))
+    sorted_sells = sorted(
+        sell_orders, key=lambda o: (o.get("price", 0), o.get("created_at", ""))
+    )
 
     remaining_match = best_volume
     filled_buys = []
@@ -231,7 +254,9 @@ async def run_auction_match() -> list[dict]:
     logger.info("=== 集合竞价撮合开始 (9:25) ===")
 
     # 收集所有竞价订单按股票分组
-    symbol_orders: dict[str, tuple[list[dict], list[dict]]] = defaultdict(lambda: ([], []))
+    symbol_orders: dict[str, tuple[list[dict], list[dict]]] = defaultdict(
+        lambda: ([], [])
+    )
     for uid, orders in list(_auction_orders.items()):
         for o in orders:
             if o.get("status") not in ("ACCEPTED", "PENDING"):
@@ -254,6 +279,7 @@ async def run_auction_match() -> list[dict]:
         prev_close = 0
         try:
             from .live_prices import get_cached_price
+
             stock = get_cached_price(symbol) or {}
             prev_close = stock.get("prev_close", 0) or stock.get("last_price", 0)
         except Exception:
@@ -275,32 +301,44 @@ async def run_auction_match() -> list[dict]:
             f"买方{len(filled_buys)}单 卖方{len(filled_sells)}单"
         )
 
-        # 处理成交
+        # 处理成交（支持部分成交：累计 filled_qty，未满量单保留待转入连续竞价）
         fill_events = []
 
         for order, qty, price in filled_buys + filled_sells:
-            order["filled_qty"] = qty
-            order["filled_amount"] = round(qty * price, 2)
-            order["avg_fill_price"] = price
+            order["filled_qty"] = order.get("filled_qty", 0) + qty
+            order["filled_amount"] = round(
+                order.get("filled_amount", 0) + qty * price, 2
+            )
+            order["avg_fill_price"] = round(
+                order["filled_amount"] / order["filled_qty"], 3
+            )
             order["fill_price"] = price
-            order["status"] = "FILLED"
-            order["fill_time"] = now.isoformat()
+            if order["filled_qty"] >= order.get("quantity", 0):
+                order["status"] = "FILLED"
+                order["fill_time"] = now.isoformat()
+            else:
+                # 部分成交：剩余未成交部分在 9:30 转入连续竞价继续撮合
+                order["status"] = "PARTIALLY_FILLED"
             order["updated_at"] = now.isoformat()
             order["auction_matched"] = True
 
-            fill_events.append({
-                "order_id": order["order_id"],
-                "symbol": symbol,
-                "name": order.get("name", ""),
-                "side": order.get("side"),
-                "quantity": qty,
-                "price": price,
-                "amount": round(qty * price, 2),
-                "user_id": order.get("user_id"),
-                "filled_at": order["fill_time"],
-                "order_status": "FILLED",
-                "source": "auction",
-            })
+            fill_events.append(
+                {
+                    "order_id": order["order_id"],
+                    "symbol": symbol,
+                    "name": order.get("name", ""),
+                    "side": order.get("side"),
+                    "quantity": qty,
+                    "price": price,
+                    "amount": round(qty * price, 2),
+                    "user_id": order.get("user_id"),
+                    "filled_at": order["updated_at"],
+                    "order_status": order["status"],
+                    "order_type": order.get("order_type", "LIMIT"),
+                    "lock_price": order.get("lock_price", price),
+                    "source": "auction",
+                }
+            )
 
         all_fills.extend(fill_events)
         all_results[symbol] = {
@@ -309,11 +347,12 @@ async def run_auction_match() -> list[dict]:
             "fill_count": len(fill_events),
         }
 
-        # 清理竞价簿中已成交的订单
+        # 清理竞价簿中已全部成交的订单；未成交/部分成交的保留，待 9:30 转入连续竞价
         for uid in list(_auction_orders.keys()):
             _auction_orders[uid] = [
-                o for o in _auction_orders[uid]
-                if o.get("status") in ("ACCEPTED", "PENDING")
+                o
+                for o in _auction_orders[uid]
+                if o.get("status") in ("ACCEPTED", "PENDING", "PARTIALLY_FILLED")
             ]
 
     logger.info(f"集合竞价撮合完成: {len(all_results)} 只股票, {len(all_fills)} 笔成交")
@@ -331,20 +370,24 @@ def get_all_opening_prices() -> dict[str, float]:
 
 
 def transition_to_continuous():
-    """9:30 过渡期结束：将竞价未成交订单转为连续竞价订单。
-    
-    调用时机：9:30 整触发一次
+    """9:30 过渡期结束：将竞价未成交/部分成交订单转为连续竞价订单。
+
+    调用时机：>= 9:30 后的首个生命周期轮询（每天只迁移一次）。
     - 竞价未成交订单自动转为连续竞价有效订单
     - 清空竞价簿
     """
-    if TradingTimeChecker.is_trading_time():
-        # 已经进入连续竞价，说明前面已处理过
-        return
+    global _last_transition_date
 
     now = _bj_now()
+    today = now.date()
+    if not TradingTimeChecker.is_trading_day():
+        return 0
     if now.time() < time(9, 30):
-        return
+        return 0
+    if _last_transition_date == today:
+        return 0
 
+    _last_transition_date = today
     logger.info("过渡期结束，竞价未成交订单转入连续竞价")
 
     from .order_engine import _orders, _symbol_orders
@@ -352,12 +395,16 @@ def transition_to_continuous():
     migrated = 0
     for uid, orders in list(_auction_orders.items()):
         for o in orders:
-            if o.get("status") not in ("ACCEPTED", "PENDING"):
+            if o.get("status") not in ("ACCEPTED", "PENDING", "PARTIALLY_FILLED"):
                 continue
+            if o.get("quantity", 0) <= o.get("filled_qty", 0):
+                continue  # 已全部成交，无需迁移
             oid = o.get("order_id", "")
-            # 转为连续竞价有效订单
+            # 转为连续竞价有效订单：清除竞价标记，主订单簿继续撮合
+            o["auction"] = False
             o["auction_mode"] = False
-            o["status"] = "ACCEPTED"
+            if o["status"] == "PENDING":
+                o["status"] = "ACCEPTED"
             o["updated_at"] = now.isoformat()
             if oid:
                 _orders[oid] = o

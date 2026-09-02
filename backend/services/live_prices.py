@@ -6,6 +6,7 @@
 - 热符号自动过期清理，防止永久膨胀
 - 订单撮合 + 价格预测在同一周期内执行
 """
+
 import asyncio
 import json
 import logging
@@ -33,8 +34,10 @@ _hot_symbols: dict[str, float] = {}
 _HOT_SYMBOL_TTL = 60  # 秒
 
 # 非交易/非竞价时段的低频刷新策略：默认沿用上一次收盘缓存，仅间隔较久刷新一次
-_OFF_HOURS_REFRESH_SECONDS = 300   # 非交易时段实际刷新间隔（5 分钟）
-_OFF_HOURS_CHECK_SECONDS = 60      # 非交易时段状态检查粒度（1 分钟，用于及时切换回实时监控）
+_OFF_HOURS_REFRESH_SECONDS = 300  # 非交易时段实际刷新间隔（5 分钟）
+_OFF_HOURS_CHECK_SECONDS = (
+    60  # 非交易时段状态检查粒度（1 分钟，用于及时切换回实时监控）
+)
 
 # 行情缓存
 _live_cache: dict[str, dict] = {}
@@ -73,6 +76,7 @@ def _resolve_cache(symbol: str) -> str | None:
         return symbol
     # 纯6位代码 → 腾讯格式
     from .symbol import to_tencent_code
+
     tc = to_tencent_code(symbol)
     if tc and tc in _live_cache:
         return tc
@@ -134,6 +138,7 @@ def get_live_price_batch(symbols: list[str]) -> dict[str, float]:
 
 # 向后兼容 API（供 main.py / api/ 层调用）
 
+
 def get_all_cached_prices() -> dict:
     """向后兼容：返回全部缓存价格（含纯代码映射）"""
     return get_all_live_prices()
@@ -166,10 +171,13 @@ def _on_order_status_change(order: dict):
     """向后兼容：订单状态变更通知"""
     try:
         q = _get_order_queue()
-        event_data = json.dumps({
-            "type": "order_status",
-            "data": order,
-        }, ensure_ascii=False)
+        event_data = json.dumps(
+            {
+                "type": "order_status",
+                "data": order,
+            },
+            ensure_ascii=False,
+        )
         q.put_nowait(event_data)
     except asyncio.QueueFull:
         pass
@@ -183,7 +191,7 @@ async def subscribe_price_stream(codes: list[str]) -> AsyncGenerator[str, None]:
         _price_event_queues[code] = event_queue
         # 注册为热符号
         add_hot_symbol(code)
-    
+
     try:
         while True:
             for code in codes:
@@ -195,7 +203,7 @@ async def subscribe_price_stream(codes: list[str]) -> AsyncGenerator[str, None]:
                     yield data
                 except asyncio.QueueEmpty:
                     pass
-            
+
             # 发送当前价格作为心跳
             price_list = []
             for code in codes:
@@ -204,7 +212,7 @@ async def subscribe_price_stream(codes: list[str]) -> AsyncGenerator[str, None]:
                     price_list.append({"symbol": code, "price": price})
             if price_list:
                 yield f"data: {json.dumps({'type': 'price_update', 'prices': price_list}, ensure_ascii=False)}\n\n"
-            
+
             await asyncio.sleep(LIVE_PRICE_POLL_INTERVAL)
     finally:
         for code in codes:
@@ -215,10 +223,12 @@ async def subscribe_order_stream(user_id: str) -> AsyncGenerator[str, None]:
     """SSE 订单状态流（向后兼容）"""
     queue = _get_order_queue()
     yield f"data: {json.dumps({'type': 'connected', 'user_id': user_id}, ensure_ascii=False)}\n\n"
-    
+
     while True:
         try:
-            event = await asyncio.wait_for(queue.get(), timeout=LIVE_PRICE_POLL_INTERVAL)
+            event = await asyncio.wait_for(
+                queue.get(), timeout=LIVE_PRICE_POLL_INTERVAL
+            )
             yield f"data: {event}\n\n"
         except TimeoutError:
             # 心跳
@@ -245,22 +255,28 @@ async def _parse_tencent_batch(text: str) -> dict[str, dict]:
             # 去掉 v_ / var hq_str_ 前缀
             for prefix in ("var hq_str_", "v_"):
                 if raw_code.startswith(prefix):
-                    raw_code = raw_code[len(prefix):]
+                    raw_code = raw_code[len(prefix) :]
                     break
             raw_data = data_part.strip().strip('";')
-            
+
             if not raw_data:
                 continue
-            
+
             # 映射简化代码到完整代码
             code = _normalize_code(raw_code)
             fields = raw_data.split("~")
             if len(fields) < 32:
                 continue
-            
+
             def _f(i, _fields=fields):
-                return float(_fields[i]) if i < len(_fields) and _fields[i] and _fields[i] not in ("0.000", "0") else 0.0
-            
+                return (
+                    float(_fields[i])
+                    if i < len(_fields)
+                    and _fields[i]
+                    and _fields[i] not in ("0.000", "0")
+                    else 0.0
+                )
+
             item = {
                 "name": fields[1],
                 "code": fields[2],
@@ -270,20 +286,20 @@ async def _parse_tencent_batch(text: str) -> dict[str, dict]:
                 "volume": int(fields[6]) if fields[6] else 0,
                 "high": _f(33),
                 "low": _f(34),
-                "amount": _f(37),       # 成交额（万）
-                "turnover": _f(38),     # 换手率
-                "pe": _f(39),           # 市盈率
-                "pb": _f(46),           # 市净率
+                "amount": _f(37),  # 成交额（万）
+                "turnover": _f(38),  # 换手率
+                "pe": _f(39),  # 市盈率
+                "pb": _f(46),  # 市净率
                 "change": 0.0,
                 "change_pct": 0.0,
             }
-            
+
             # 计算涨跌幅
             prev = item["prev_close"]
             if prev > 0 and item["last_price"] > 0:
                 item["change"] = round(item["last_price"] - prev, 3)
                 item["change_pct"] = round(item["change"] / prev * 100, 2)
-            
+
             result[code] = item
             result[raw_code] = item  # 也存储为简化 key
         except Exception:
@@ -306,7 +322,7 @@ def _normalize_code(raw: str) -> str:
 
 async def live_price_poller():
     """实时行情轮询主循环 - 单次批量请求所有符号
-    
+
     每次轮询仅发起 1 次 API 调用，包含：
     - 6只指数（固定）
     - 自选股（最多3只）
@@ -318,7 +334,7 @@ async def live_price_poller():
         f"单次批量拉取（指数+自选+热符号），"
         f"限流器={api_limiter.max_rate}req/{api_limiter.time_period}s"
     )
-    
+
     _last_fetch_ts: float | None = None  # 上次实际请求时间（事件循环单调时钟）
 
     async with httpx.AsyncClient(timeout=5) as client:
@@ -337,19 +353,21 @@ async def live_price_poller():
                 else:
                     await asyncio.sleep(_OFF_HOURS_CHECK_SECONDS)
                     now_loop = asyncio.get_event_loop().time()
-                    should_fetch = (_last_fetch_ts is None or
-                                    (now_loop - _last_fetch_ts) >= _OFF_HOURS_REFRESH_SECONDS)
+                    should_fetch = (
+                        _last_fetch_ts is None
+                        or (now_loop - _last_fetch_ts) >= _OFF_HOURS_REFRESH_SECONDS
+                    )
 
                 if not should_fetch:
                     continue
 
                 # ── 收集本轮需要查询的全部符号 ──
                 symbols_to_fetch: set[str] = set()
-                
+
                 # 1. 指数（固定6只，已为腾讯格式）
                 for idx in TRACKED_INDICES:
                     symbols_to_fetch.add(idx.lower())
-                
+
                 # 2. 自选股（从数据库获取，需转换为腾讯格式）
                 try:
                     watchlist = await db_service.get_watchlist()
@@ -359,7 +377,7 @@ async def live_price_poller():
                             symbols_to_fetch.add(tc.lower())
                 except Exception as e:
                     logger.warning(f"获取自选列表失败: {e}")
-                
+
                 # 3. 热符号（用户查询过的非自选股，自动清理过期）
                 now = asyncio.get_event_loop().time()
                 expired = [s for s, t in _hot_symbols.items() if t < now]
@@ -369,24 +387,24 @@ async def live_price_poller():
                     tc = to_tencent_code(sym)
                     if tc:
                         symbols_to_fetch.add(tc.lower())
-                
+
                 if not symbols_to_fetch:
                     continue
-                
+
                 # 单次批量请求
                 code_str = ",".join(sorted(symbols_to_fetch))
-                
+
                 async with api_limiter:
                     resp = await client.get(f"http://qt.gtimg.cn/q={code_str}")
                     if resp.status_code != 200:
                         continue
-                
+
                 raw_text = resp.text
                 if not raw_text or "pv_none_match" in raw_text:
                     continue
-                
+
                 parsed = await _parse_tencent_batch(raw_text)
-                
+
                 # 更新内存缓存
                 for code, item in parsed.items():
                     _live_cache[code] = {
@@ -406,9 +424,10 @@ async def live_price_poller():
                     }
                 _live_cache_ts = datetime.now().astimezone().isoformat()
                 _last_fetch_ts = asyncio.get_event_loop().time()
-                
+
                 # 分离指数数据（同步写入 indices._index_cache，供 market_tool 消费）
                 from .indices import update_index_cache
+
                 idx_updates = {}
                 for idx in TRACKED_INDICES:
                     item = parsed.get(idx.lower())
@@ -428,9 +447,10 @@ async def live_price_poller():
                         idx_updates[idx] = idx_data
                 if idx_updates:
                     update_index_cache(idx_updates)
-                
-                # 订单撮合（仅在交易时间）
-                if is_trading:
+
+                # 订单撮合：竞价阶段(9:15-9:30)驱动竞价撮合与竞价→连续迁移，
+                # 连续竞价阶段(9:30后)驱动常规撮合。撮合引擎内部自行判断所处阶段。
+                if realtime_mode:
                     try:
                         fills = await match_orders(_live_cache)
                         # 对每笔成交调用 fill callback，完成持仓和余额结算
@@ -439,10 +459,21 @@ async def live_price_poller():
                                 try:
                                     await _fill_callback(fill)
                                 except Exception as e:
-                                    logger.error(f"成交回调异常 {fill.get('order_id')}: {e}")
+                                    logger.error(
+                                        f"成交回调异常 {fill.get('order_id')}: {e}"
+                                    )
+                                    # 结算失败时回滚订单内存状态，避免订单簿与账目长期不一致
+                                    try:
+                                        from .order_engine import (
+                                            rollback_fill_settlement,
+                                        )
+
+                                        rollback_fill_settlement(fill)
+                                    except Exception:
+                                        logger.exception("成交回滚失败")
                     except Exception as e:
                         logger.debug(f"订单撮合跳过: {e}")
-                
+
             except asyncio.CancelledError:
                 logger.info("实时行情轮询服务已停止")
                 break

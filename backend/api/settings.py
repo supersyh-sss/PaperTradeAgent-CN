@@ -1,7 +1,8 @@
 """系统设置 API - 读取/更新 .env 配置"""
+
 import json
 import logging
-from datetime import date
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -10,10 +11,17 @@ from pydantic import BaseModel, Field
 
 from ..middleware.error_handler import get_current_user
 from ..services import db
+from ..services.trading_time import CHINA_TZ
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["settings"])
+
+
+def _bjt_today() -> str:
+    """北京时间日期（Y-m-d）：初始资金/风控的"每日"限制以北京日为界"""
+    return datetime.now(CHINA_TZ).date().isoformat()
+
 
 # 项目根目录 & .env 路径
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -25,70 +33,58 @@ _BALANCE_CHANGE_FILE = _DATA_DIR / "last_balance_change.json"
 # (key, category, label, description, type)
 # type: "string" | "int" | "float"
 _SETTING_DEFS: list[tuple[str, str, str, str, str]] = [
-    ("DEEPSEEK_API_KEY", "模型配置",
-     "API密钥",
-     "API密钥 - Flash模型用于对话分类等轻量任务，Pro模型用于技术分析/报告等深度推理（两个模型共用同一API Key）",
-     "string"),
-    ("DEEPSEEK_BASE_URL", "模型配置",
-     "API接口地址",
-     "API接口地址",
-     "string"),
-    ("DEEPSEEK_FLASH_MODEL", "模型配置",
-     "Flash模型",
-     "Flash模型 - 用于意图识别、对话、文本结构化等快速响应任务",
-     "string"),
-    ("DEEPSEEK_PRO_MODEL", "模型配置",
-     "Pro模型",
-     "Pro模型 - 用于技术分析、交易计划、风险研判等深度推理任务",
-     "string"),
-    ("THINKING_MODE", "模型配置",
-     "思考模式",
-     "思考模式 - auto=按场景自动路由 / fast=全部走Flash(最快) / deep=深度分析强制Pro",
-     "string"),
-    ("LIVE_PRICE_POLL_INTERVAL", "行情与限流",
-     "行情轮询间隔",
-     "行情轮询间隔(秒) - 1s=近实时",
-     "int"),
-    ("API_RATE_LIMIT", "行情与限流",
-     "API限流",
-     "API限流(次/窗口)",
-     "int"),
-    ("API_RATE_WINDOW", "行情与限流",
-     "限流窗口",
-     "限流窗口(秒)",
-     "int"),
-    ("DB_PATH", "数据存储",
-     "数据存储路径",
-     "数据存储路径",
-     "string"),
-    ("INITIAL_BALANCE", "交易模拟",
-     "初始资金",
-     "初始资金 - 每日限修改一次，不可低于当前持仓总市值",
-     "float"),
-    ("HTTP_TIMEOUT_STOCK", "超时设置",
-     "行情API超时",
-     "行情API超时(秒)",
-     "int"),
-    ("HTTP_TIMEOUT_LLM_CHAT", "超时设置",
-     "LLM对话超时",
-     "LLM对话超时(秒)",
-     "int"),
-    ("HTTP_TIMEOUT_LLM_STREAM", "超时设置",
-     "LLM流式超时",
-     "LLM流式超时(秒)",
-     "int"),
-    ("MAX_RECENT_MESSAGES", "对话记忆",
-     "最大近期消息数",
-     "最大近期消息数",
-     "int"),
-    ("MAX_TOTAL_MESSAGES", "对话记忆",
-     "最大总消息数",
-     "最大总消息数",
-     "int"),
-    ("SUMMARY_TRIM_THRESHOLD", "对话记忆",
-     "摘要裁剪阈值",
-     "摘要裁剪阈值",
-     "int"),
+    (
+        "DEEPSEEK_API_KEY",
+        "模型配置",
+        "API密钥",
+        "API密钥 - Flash模型用于对话分类等轻量任务，Pro模型用于技术分析/报告等深度推理（两个模型共用同一API Key）",
+        "string",
+    ),
+    ("DEEPSEEK_BASE_URL", "模型配置", "API接口地址", "API接口地址", "string"),
+    (
+        "DEEPSEEK_FLASH_MODEL",
+        "模型配置",
+        "Flash模型",
+        "Flash模型 - 用于意图识别、对话、文本结构化等快速响应任务",
+        "string",
+    ),
+    (
+        "DEEPSEEK_PRO_MODEL",
+        "模型配置",
+        "Pro模型",
+        "Pro模型 - 用于技术分析、交易计划、风险研判等深度推理任务",
+        "string",
+    ),
+    (
+        "THINKING_MODE",
+        "模型配置",
+        "思考模式",
+        "思考模式 - auto=按场景自动路由 / fast=全部走Flash(最快) / deep=深度分析强制Pro",
+        "string",
+    ),
+    (
+        "LIVE_PRICE_POLL_INTERVAL",
+        "行情与限流",
+        "行情轮询间隔",
+        "行情轮询间隔(秒) - 1s=近实时",
+        "int",
+    ),
+    ("API_RATE_LIMIT", "行情与限流", "API限流", "API限流(次/窗口)", "int"),
+    ("API_RATE_WINDOW", "行情与限流", "限流窗口", "限流窗口(秒)", "int"),
+    ("DB_PATH", "数据存储", "数据存储路径", "数据存储路径", "string"),
+    (
+        "INITIAL_BALANCE",
+        "交易模拟",
+        "初始资金",
+        "初始资金 - 每日限修改一次，不可低于当前持仓总市值",
+        "float",
+    ),
+    ("HTTP_TIMEOUT_STOCK", "超时设置", "行情API超时", "行情API超时(秒)", "int"),
+    ("HTTP_TIMEOUT_LLM_CHAT", "超时设置", "LLM对话超时", "LLM对话超时(秒)", "int"),
+    ("HTTP_TIMEOUT_LLM_STREAM", "超时设置", "LLM流式超时", "LLM流式超时(秒)", "int"),
+    ("MAX_RECENT_MESSAGES", "对话记忆", "最大近期消息数", "最大近期消息数", "int"),
+    ("MAX_TOTAL_MESSAGES", "对话记忆", "最大总消息数", "最大总消息数", "int"),
+    ("SUMMARY_TRIM_THRESHOLD", "对话记忆", "摘要裁剪阈值", "摘要裁剪阈值", "int"),
 ]
 
 
@@ -155,6 +151,7 @@ def _reload_env() -> None:
     """重新加载 .env 到 os.environ"""
     try:
         from dotenv import load_dotenv
+
         load_dotenv(_ENV_PATH, override=True)
     except ImportError:
         logger.debug("dotenv not installed")
@@ -185,6 +182,7 @@ async def _get_current_total_market_value() -> float:
     try:
         from ..services.live_prices import get_live_price_batch
         from ..services.position_service import get_positions
+
         positions = await get_positions(user_id="default")
         if not positions:
             return 0.0
@@ -210,12 +208,16 @@ async def _get_current_total_market_value() -> float:
 class SettingsUpdateRequest(BaseModel):
     settings: dict[str, Any] = Field(
         ...,
-        description="要更新的设置键值对，如 {\"DEEPSEEK_API_KEY\": \"sk-xxx\"}",
-        example={"DEEPSEEK_FLASH_MODEL": "deepseek-v4-flash", "LIVE_PRICE_POLL_INTERVAL": 2},
+        description='要更新的设置键值对，如 {"DEEPSEEK_API_KEY": "sk-xxx"}',
+        example={
+            "DEEPSEEK_FLASH_MODEL": "deepseek-v4-flash",
+            "LIVE_PRICE_POLL_INTERVAL": 2,
+        },
     )
 
 
 # Endpoints
+
 
 @router.post("")
 async def get_settings(user_id: str = Depends(get_current_user)):
@@ -245,7 +247,7 @@ async def get_settings(user_id: str = Depends(get_current_user)):
 
     # 读取初始资金日限信息
     last_change = _read_last_balance_change()
-    balance_blocked = last_change == str(date.today())
+    balance_blocked = last_change == _bjt_today()
 
     return {
         "categories": categorized,
@@ -257,7 +259,9 @@ async def get_settings(user_id: str = Depends(get_current_user)):
 
 
 @router.put("")
-async def update_settings(req: SettingsUpdateRequest, user_id: str = Depends(get_current_user)):
+async def update_settings(
+    req: SettingsUpdateRequest, user_id: str = Depends(get_current_user)
+):
     """批量更新系统设置，写入 .env 并热加载"""
     updates = req.settings
     if not updates:
@@ -276,15 +280,21 @@ async def update_settings(req: SettingsUpdateRequest, user_id: str = Depends(get
 
     for key, value in updates.items():
         # 跳过脱敏值
-        if key == "DEEPSEEK_API_KEY" and isinstance(value, str) and value.startswith("***"):
+        if (
+            key == "DEEPSEEK_API_KEY"
+            and isinstance(value, str)
+            and value.startswith("***")
+        ):
             continue
 
         # INITIAL_BALANCE 日限检查
         if key == "INITIAL_BALANCE":
-            today_str = str(date.today())
+            today_str = _bjt_today()
             last_change = _read_last_balance_change()
             if last_change == today_str:
-                raise HTTPException(status_code=400, detail="初始资金每日限修改一次，今日已修改过")
+                raise HTTPException(
+                    status_code=400, detail="初始资金每日限修改一次，今日已修改过"
+                )
 
             # 检查是否低于当前持仓总市值
             try:
@@ -327,7 +337,9 @@ async def update_settings(req: SettingsUpdateRequest, user_id: str = Depends(get
         if "INITIAL_BALANCE" in to_write:
             new_balance = float(to_write["INITIAL_BALANCE"])
             market_value = await _get_current_total_market_value()
-            await db.update_account_balance("default", new_balance, new_balance + market_value)
+            await db.update_account_balance(
+                "default", new_balance, new_balance + market_value
+            )
         logger.info(f"设置已更新: {', '.join(to_write.keys())}")
 
     return {"success": True, "updated_keys": list(to_write.keys())}

@@ -1,4 +1,5 @@
 """自选股管理 API"""
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
@@ -28,6 +29,7 @@ async def get_user_watchlist(user_id: str = Depends(get_current_user)):
     # Use background polling cache for instant prices (no API call)
     if watchlist:
         from ..services.live_prices import get_cached_price
+
         for w in watchlist:
             sym = pure_code(w["symbol"])
             w["symbol"] = sym
@@ -52,7 +54,16 @@ async def get_user_watchlist(user_id: str = Depends(get_current_user)):
                     stock = prices_data.get(w["symbol"], {})
                     w["price"] = stock.get("price", 0.0)
                     w["prev_close"] = stock.get("prev_close", 0.0)
-                    w["change_pct"] = round((stock.get("price", 0) - stock.get("prev_close", 1)) / max(stock.get("prev_close", 1), 0.01) * 100, 2) if stock.get("prev_close") and stock.get("price") else 0.0
+                    w["change_pct"] = (
+                        round(
+                            (stock.get("price", 0) - stock.get("prev_close", 1))
+                            / max(stock.get("prev_close", 1), 0.01)
+                            * 100,
+                            2,
+                        )
+                        if stock.get("prev_close") and stock.get("price")
+                        else 0.0
+                    )
         except Exception:
             pass
 
@@ -60,7 +71,9 @@ async def get_user_watchlist(user_id: str = Depends(get_current_user)):
 
 
 @router.post("/validate")
-async def validate_stock(req: ValidateStockRequest, user_id: str = Depends(get_current_user)):
+async def validate_stock(
+    req: ValidateStockRequest, user_id: str = Depends(get_current_user)
+):
     """验证股票名称/代码是否有效（通过行情接口二次校验）"""
     query = (req.query or "").strip()
     if not query:
@@ -69,7 +82,10 @@ async def validate_stock(req: ValidateStockRequest, user_id: str = Depends(get_c
     # 1. 归一化为 6 位数字代码；若输入是中文名则尝试本地映射
     normalized = normalize_symbol(query)
     if not normalized:
-        raise HTTPException(400, f"无法识别「{query}」，请使用正确的股票代码（如 600519、000001）或常见名称（如 茅台）")
+        raise HTTPException(
+            400,
+            f"无法识别「{query}」，请使用正确的股票代码（如 600519、000001）或常见名称（如 茅台）",
+        )
 
     # 2. 通过行情接口二次校验（带多源故障转移）
     try:
@@ -84,7 +100,7 @@ async def validate_stock(req: ValidateStockRequest, user_id: str = Depends(get_c
                     "symbol": normalized,
                     "name": name,
                     "price": price,
-                    "message": f"验证成功：{name}（{normalized}）当前价 {price}"
+                    "message": f"验证成功：{name}（{normalized}）当前价 {price}",
                 }
     except Exception as exc:
         raise HTTPException(503, f"行情服务暂不可用，请稍后重试：{exc}")
@@ -93,7 +109,9 @@ async def validate_stock(req: ValidateStockRequest, user_id: str = Depends(get_c
 
 
 @router.post("")
-async def add_to_watchlist(req: AddWatchlistRequest, user_id: str = Depends(get_current_user)):
+async def add_to_watchlist(
+    req: AddWatchlistRequest, user_id: str = Depends(get_current_user)
+):
     """添加自选股"""
     return await add_watchlist_core(user_id, req.symbol, req.name)
 
@@ -118,7 +136,11 @@ async def add_watchlist_core(user_id: str, symbol: str, name: str) -> dict:
 
     await db.add_watchlist(user_id, symbol, name)
     watchlist = await db.get_watchlist(user_id)
-    return {"success": True, "watchlist": watchlist, "message": f"已添加 {name}({symbol}) 到自选股 [{len(watchlist)}/{WATCHLIST_MAX_SIZE}]"}
+    return {
+        "success": True,
+        "watchlist": watchlist,
+        "message": f"已添加 {name}({symbol}) 到自选股 [{len(watchlist)}/{WATCHLIST_MAX_SIZE}]",
+    }
 
 
 @router.delete("/{symbol}")

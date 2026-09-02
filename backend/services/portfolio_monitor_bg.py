@@ -11,6 +11,7 @@
   - 好的卖出 = 分多次、看市场情况卖出，而非一次性清仓；
   - 触碰纪律红线（组合亏损超过阈值）必须果断离场。
 """
+
 import asyncio
 import json
 import logging
@@ -27,14 +28,14 @@ BJT = timezone(timedelta(hours=8))
 logger = logging.getLogger(__name__)
 
 # ── 风控纪律阈值 ──
-DAILY_CHANGE_WARN_PCT = 3.0        # 个股日内涨跌幅超过 ±3% 告警
+DAILY_CHANGE_WARN_PCT = 3.0  # 个股日内涨跌幅超过 ±3% 告警
 SINGLE_DRAWDOWN_DANGER_PCT = -8.0  # 单只持仓亏损超过 8% 果断减仓
-TOTAL_DRAWDOWN_WARN_PCT = -2.0     # 组合回撤超过 2% 预警
-TOTAL_DRAWDOWN_DANGER_PCT = -5.0   # 组合亏损超过 5% 触发风控红线，果断离场
+TOTAL_DRAWDOWN_WARN_PCT = -2.0  # 组合回撤超过 2% 预警
+TOTAL_DRAWDOWN_DANGER_PCT = -5.0  # 组合亏损超过 5% 触发风控红线，果断离场
 
 # ── 同一建议的去重冷却（秒），避免每个巡检周期重复推送刷屏 ──
-_DANGER_COOLDOWN = 300   # 红线建议 5 分钟内只推一次
-_WARN_COOLDOWN = 900     # 一般预警 15 分钟内只推一次
+_DANGER_COOLDOWN = 300  # 红线建议 5 分钟内只推一次
+_WARN_COOLDOWN = 900  # 一般预警 15 分钟内只推一次
 
 # 建议去重键 -> 上次推送时间（单调时钟）
 _last_alert_at: dict = {}
@@ -70,8 +71,10 @@ async def _persist(session_id: str, body: str, meta: dict):
             return
         await db_service.create_conversation(session_id, "default")
         await db_service.save_message(
-            session_id, "assistant", body,
-            metadata=json.dumps({"monitor": True, **meta}, ensure_ascii=False)
+            session_id,
+            "assistant",
+            body,
+            metadata=json.dumps({"monitor": True, **meta}, ensure_ascii=False),
         )
     except Exception:
         logger.warning("监控建议持久化失败", exc_info=True)
@@ -81,20 +84,33 @@ async def _emit(suggestion: dict):
     """推送一条纪律建议：实时 SSE + 会话历史持久化。"""
     session_id = await _target_session()
     if session_id:
-        push_system_message(session_id, {"type": "monitor_suggestion", "data": suggestion})
-        await _persist(session_id, suggestion.get("message", ""), {
-            "severity": suggestion.get("severity", "info"),
-            "action": suggestion.get("action"),
-            "symbol": suggestion.get("symbol"),
-        })
+        push_system_message(
+            session_id, {"type": "monitor_suggestion", "data": suggestion}
+        )
+        await _persist(
+            session_id,
+            suggestion.get("message", ""),
+            {
+                "severity": suggestion.get("severity", "info"),
+                "action": suggestion.get("action"),
+                "symbol": suggestion.get("symbol"),
+            },
+        )
     else:
         logger.info("暂无可用会话接收监控建议，跳过推送: %s", suggestion.get("title"))
 
 
-def _build_suggestion(severity: str, title: str, message: str, action: str,
-                      symbol: str | None = None, name: str | None = None,
-                      suggested_prompt: str | None = None,
-                      positions: list | None = None, total_pnl_pct: float = 0.0) -> dict:
+def _build_suggestion(
+    severity: str,
+    title: str,
+    message: str,
+    action: str,
+    symbol: str | None = None,
+    name: str | None = None,
+    suggested_prompt: str | None = None,
+    positions: list | None = None,
+    total_pnl_pct: float = 0.0,
+) -> dict:
     """组装一条结构化的纪律建议（供前端渲染风控卡片与一键操作）。"""
     return {
         "severity": severity,
@@ -151,34 +167,49 @@ async def start_portfolio_monitor():
                 market_value = current_price * qty
                 total_market_value += market_value
                 pnl = (current_price - avg_cost) * qty
-                pnl_pct = ((current_price - avg_cost) / avg_cost * 100) if avg_cost > 0 else 0.0
-                daily_change_pct = ((current_price - prev_close) / prev_close * 100) if prev_close > 0 else 0.0
+                pnl_pct = (
+                    ((current_price - avg_cost) / avg_cost * 100)
+                    if avg_cost > 0
+                    else 0.0
+                )
+                daily_change_pct = (
+                    ((current_price - prev_close) / prev_close * 100)
+                    if prev_close > 0
+                    else 0.0
+                )
 
-                position_snapshots.append({
-                    "symbol": symbol,
-                    "name": name,
-                    "quantity": qty,
-                    "avg_cost": round(avg_cost, 3),
-                    "current_price": round(current_price, 3),
-                    "market_value": round(market_value, 2),
-                    "pnl": round(pnl, 2),
-                    "pnl_pct": round(pnl_pct, 2),
-                    "daily_change_pct": round(daily_change_pct, 2),
-                })
+                position_snapshots.append(
+                    {
+                        "symbol": symbol,
+                        "name": name,
+                        "quantity": qty,
+                        "avg_cost": round(avg_cost, 3),
+                        "current_price": round(current_price, 3),
+                        "market_value": round(market_value, 2),
+                        "pnl": round(pnl, 2),
+                        "pnl_pct": round(pnl_pct, 2),
+                        "daily_change_pct": round(daily_change_pct, 2),
+                    }
+                )
 
                 # 1) 单只持仓亏损触发风控线 -> 果断减仓离场
                 if pnl_pct <= SINGLE_DRAWDOWN_DANGER_PCT:
                     key = f"danger:single:{symbol}"
                     if _cooldown_ok(key, "danger"):
-                        suggestions.append(_build_suggestion(
-                            "danger",
-                            f"{name} 触发个股风控线",
-                            f"{name} 已亏损 {pnl_pct:+.2f}%，触发个股风控纪律。"
-                            f"建议果断减仓离场该股（可分批卖出以控制冲击成本）。是否执行减仓？",
-                            "exit", symbol, name,
-                            f"我持有的{name}亏损较大，请帮我制定减仓离场计划",
-                            position_snapshots, pnl_pct,
-                        ))
+                        suggestions.append(
+                            _build_suggestion(
+                                "danger",
+                                f"{name} 触发个股风控线",
+                                f"{name} 已亏损 {pnl_pct:+.2f}%，触发个股风控纪律。"
+                                f"建议果断减仓离场该股（可分批卖出以控制冲击成本）。是否执行减仓？",
+                                "exit",
+                                symbol,
+                                name,
+                                f"我持有的{name}亏损较大，请帮我制定减仓离场计划",
+                                position_snapshots,
+                                pnl_pct,
+                            )
+                        )
                 # 2) 个股日内波动过大 -> 分批止盈 / 止损提示
                 elif abs(daily_change_pct) > DAILY_CHANGE_WARN_PCT:
                     key = f"warn:daily:{symbol}"
@@ -193,12 +224,19 @@ async def start_portfolio_monitor():
                             title = f"{name} 日内下跌 {daily_change_pct:+.2f}%"
                             prompt = f"我持有的{name}日内下跌，请帮我制定分批止损计划"
                             note = "注意风险，可考虑分批止损，而非扛单。"
-                        suggestions.append(_build_suggestion(
-                            "warning", title,
-                            f"{name} 日内{daily_change_pct:+.2f}%，{note}是否按计划分批{verb}？",
-                            action, symbol, name, prompt,
-                            position_snapshots, pnl_pct,
-                        ))
+                        suggestions.append(
+                            _build_suggestion(
+                                "warning",
+                                title,
+                                f"{name} 日内{daily_change_pct:+.2f}%，{note}是否按计划分批{verb}？",
+                                action,
+                                symbol,
+                                name,
+                                prompt,
+                                position_snapshots,
+                                pnl_pct,
+                            )
+                        )
 
             # 组合层面：总盈亏纪律
             total_pnl = total_market_value - total_cost
@@ -207,33 +245,45 @@ async def start_portfolio_monitor():
             if total_pnl_pct <= TOTAL_DRAWDOWN_DANGER_PCT:
                 key = "danger:total"
                 if _cooldown_ok(key, "danger"):
-                    suggestions.append(_build_suggestion(
-                        "danger",
-                        "触发组合风控红线",
-                        f"持仓组合总亏损 {total_pnl_pct:+.2f}%（超过 {abs(TOTAL_DRAWDOWN_DANGER_PCT):.0f}% 风控线）。"
-                        f"纪律要求果断离场：优先分批减仓亏损最大的持仓，控制风险。是否立即执行离场？",
-                        "exit", None, None,
-                        "触发风控红线，请帮我制定分批减仓离场计划",
-                        position_snapshots, total_pnl_pct,
-                    ))
+                    suggestions.append(
+                        _build_suggestion(
+                            "danger",
+                            "触发组合风控红线",
+                            f"持仓组合总亏损 {total_pnl_pct:+.2f}%（超过 {abs(TOTAL_DRAWDOWN_DANGER_PCT):.0f}% 风控线）。"
+                            f"纪律要求果断离场：优先分批减仓亏损最大的持仓，控制风险。是否立即执行离场？",
+                            "exit",
+                            None,
+                            None,
+                            "触发风控红线，请帮我制定分批减仓离场计划",
+                            position_snapshots,
+                            total_pnl_pct,
+                        )
+                    )
             elif total_pnl_pct <= TOTAL_DRAWDOWN_WARN_PCT:
                 key = "warn:total"
                 if _cooldown_ok(key, "warning"):
-                    suggestions.append(_build_suggestion(
-                        "warning",
-                        "组合回撤预警",
-                        f"持仓组合已回撤 {total_pnl_pct:+.2f}%，建议分批减仓控制风险"
-                        f"（可分 2-3 批，看市场情况逐步执行）。是否继续减仓？",
-                        "trim", None, None,
-                        "组合回撤，请帮我制定分批减仓计划",
-                        position_snapshots, total_pnl_pct,
-                    ))
+                    suggestions.append(
+                        _build_suggestion(
+                            "warning",
+                            "组合回撤预警",
+                            f"持仓组合已回撤 {total_pnl_pct:+.2f}%，建议分批减仓控制风险"
+                            f"（可分 2-3 批，看市场情况逐步执行）。是否继续减仓？",
+                            "trim",
+                            None,
+                            None,
+                            "组合回撤，请帮我制定分批减仓计划",
+                            position_snapshots,
+                            total_pnl_pct,
+                        )
+                    )
 
             for sug in suggestions:
                 await _emit(sug)
 
             if suggestions:
-                logger.info(f"持仓监控：{len(positions)} 个持仓，推送 {len(suggestions)} 条纪律建议")
+                logger.info(
+                    f"持仓监控：{len(positions)} 个持仓，推送 {len(suggestions)} 条纪律建议"
+                )
             else:
                 logger.debug(f"持仓监控：{len(positions)} 个持仓，无新建议")
 

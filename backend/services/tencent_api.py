@@ -1,4 +1,5 @@
 """腾讯财经API - 主数据源"""
+
 import json
 import logging
 import re
@@ -24,9 +25,18 @@ class TencentFinanceAPI:
     # 7:外盘 8:内盘 9:买一价 10:买一量 ... 33:最高价 34:最低价
     # 36:成交量 37:成交额(万) 38:换手率 39:市盈率 44:流通市值 45:总市值 46:市净率
     FIELD_MAP: ClassVar[dict[str, int]] = {
-        "name": 1, "code": 2, "price": 3, "prev_close": 4,
-        "open": 5, "volume": 6, "high": 33, "low": 34,
-        "amount": 37, "turnover": 38, "pe": 39, "pb": 46,
+        "name": 1,
+        "code": 2,
+        "price": 3,
+        "prev_close": 4,
+        "open": 5,
+        "volume": 6,
+        "high": 33,
+        "low": 34,
+        "amount": 37,
+        "turnover": 38,
+        "pe": 39,
+        "pb": 46,
     }
 
     @staticmethod
@@ -51,13 +61,20 @@ class TencentFinanceAPI:
             fields = match.group(2).split("~")
 
             # 字段不足或返回为空行情时跳过，避免 IndexError
-            if len(fields) < max(self.FIELD_MAP.values()) + 1 or not fields[self.FIELD_MAP["name"]]:
+            if (
+                len(fields) < max(self.FIELD_MAP.values()) + 1
+                or not fields[self.FIELD_MAP["name"]]
+            ):
                 logger.warning(f"腾讯行情返回异常或空数据: {raw_code}")
                 continue
 
             clean_code = pure_code(raw_code)
             try:
-                price = float(fields[self.FIELD_MAP["price"]]) if fields[self.FIELD_MAP["price"]] else 0
+                price = (
+                    float(fields[self.FIELD_MAP["price"]])
+                    if fields[self.FIELD_MAP["price"]]
+                    else 0
+                )
             except (ValueError, IndexError):
                 price = 0
 
@@ -77,12 +94,16 @@ class TencentFinanceAPI:
                 "pe": self._safe_float(fields, "pe"),
                 "pb": self._safe_float(fields, "pb"),
                 "change": round(price - prev_close, 2) if price else 0,
-                "change_pct": round((price / prev_close - 1) * 100, 2) if prev_close else 0,
+                "change_pct": round((price / prev_close - 1) * 100, 2)
+                if prev_close
+                else 0,
                 "source": "tencent",
             }
         return results
 
-    async def get_kline(self, code: str, period: str = "day", count: int = 250) -> list[dict] | None:
+    async def get_kline(
+        self, code: str, period: str = "day", count: int = 250
+    ) -> list[dict] | None:
         """获取历史K线数据"""
         formatted = self._make_code(code)
         params = {
@@ -103,7 +124,11 @@ class TencentFinanceAPI:
             return None
 
         stock_data = data.get("data", {}).get(formatted, {})
-        kline_list = stock_data.get(period, []) if period in stock_data else stock_data.get(f"qfq{period}", [])
+        kline_list = (
+            stock_data.get(period, [])
+            if period in stock_data
+            else stock_data.get(f"qfq{period}", [])
+        )
 
         if not kline_list:
             return None

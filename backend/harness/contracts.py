@@ -22,16 +22,30 @@ CHIEF_STRATEGIST_SCHEMA = {
     "properties": {
         "intent": {
             "type": "string",
-            "enum": ["analyze", "trade", "query", "portfolio", "watchlist", "chat", "market", "cancel_order"]
+            "enum": [
+                "analyze",
+                "trade",
+                "query",
+                "portfolio",
+                "watchlist",
+                "chat",
+                "market",
+                "cancel_order",
+            ],
         },
         "stock_symbol": {"type": "string"},
         "stock_name": {"type": "string"},
         "needed_agents": {
             "type": "array",
-            "items": {"type": "string", "enum": [
-                "quant_researcher", "market_intelligence",
-                "trade_executor", "portfolio_monitor"
-            ]}
+            "items": {
+                "type": "string",
+                "enum": [
+                    "quant_researcher",
+                    "market_intelligence",
+                    "trade_executor",
+                    "portfolio_monitor",
+                ],
+            },
         },
         "needs_report": {"type": "boolean"},
         "trade_side": {"type": "string", "enum": ["BUY", "SELL"]},
@@ -40,7 +54,7 @@ CHIEF_STRATEGIST_SCHEMA = {
         "chat_reply": {"type": "string"},
         "cancel_order_id": {"type": "string"},
         "detail_level": {"type": "string", "enum": ["detailed", "brief", "auto"]},
-    }
+    },
 }
 
 QUANT_RESEARCHER_SCHEMA = {
@@ -53,21 +67,24 @@ QUANT_RESEARCHER_SCHEMA = {
         "volatility_assessment": {"type": "string"},
         "key_signals": {"type": "array", "items": {"type": "string"}},
         "risk_flags": {"type": "array", "items": {"type": "string"}},
-    }
+    },
 }
 
 MARKET_INTELLIGENCE_SCHEMA = {
     "type": "object",
     "required": ["sentiment_label", "sentiment_score"],
     "properties": {
-        "sentiment_label": {"type": "string", "enum": ["positive", "neutral", "negative", "unknown"]},
+        "sentiment_label": {
+            "type": "string",
+            "enum": ["positive", "neutral", "negative", "unknown"],
+        },
         "sentiment_score": {"type": "number", "minimum": -1, "maximum": 1},
         "impact_direction": {"type": "string"},
         "impact_strength": {"type": "string", "enum": ["high", "medium", "low"]},
         "impact_summary": {"type": "string"},
         "key_factors": {"type": "array", "items": {"type": "string"}},
         "risk_alerts": {"type": "array", "items": {"type": "string"}},
-    }
+    },
 }
 
 TRADE_EXECUTOR_SCHEMA = {
@@ -79,7 +96,7 @@ TRADE_EXECUTOR_SCHEMA = {
         "risk_assessment_chinese": {"type": "string"},
         "suggested_price": {"type": "number", "minimum": 0.01},
         "suggested_quantity": {"type": "integer", "minimum": 100},
-    }
+    },
 }
 
 PORTFOLIO_MONITOR_SCHEMA = {
@@ -90,10 +107,11 @@ PORTFOLIO_MONITOR_SCHEMA = {
         "concentration_risk": {"type": "string"},
         "drawdown_status": {"type": "string"},
         "recommendations_chinese": {"type": "array", "items": {"type": "string"}},
-    }
+    },
 }
 
 # Contract Registry
+
 
 class ContractVersion(Enum):
     V1_0 = "1.0"
@@ -103,6 +121,7 @@ class ContractVersion(Enum):
 @dataclass
 class AgentContract:
     """Agent 契约：定义输入/输出 Schema 及语义约束"""
+
     agent_name: str
     version: ContractVersion = ContractVersion.V1_0
     input_schema: dict | None = None
@@ -117,22 +136,28 @@ class AgentContract:
         for key in self.output_schema.get("required", []):
             if key not in data:
                 issues.append(f"Missing required field: {key}")
-        
+
         # Type coercion for critical fields
         props = self.output_schema.get("properties", {})
         for key, prop in props.items():
             if key in data:
                 expected_type = prop.get("type")
-                if expected_type == "number" and not isinstance(data[key], (int, float)):
+                if expected_type == "number" and not isinstance(
+                    data[key], (int, float)
+                ):
                     try:
                         data[key] = float(data[key])
                     except (ValueError, TypeError):
-                        issues.append(f"Field '{key}' should be number, got: {type(data[key]).__name__}")
+                        issues.append(
+                            f"Field '{key}' should be number, got: {type(data[key]).__name__}"
+                        )
                 elif expected_type == "integer" and not isinstance(data[key], int):
                     try:
                         data[key] = int(data[key])
                     except (ValueError, TypeError):
-                        issues.append(f"Field '{key}' should be integer, got: {type(data[key]).__name__}")
+                        issues.append(
+                            f"Field '{key}' should be integer, got: {type(data[key]).__name__}"
+                        )
                 elif expected_type == "array" and not isinstance(data[key], list):
                     try:
                         if isinstance(data[key], str):
@@ -144,6 +169,7 @@ class AgentContract:
 
 class ContractRegistry:
     """全局契约注册表 — 单例模式"""
+
     _instance = None
     _contracts: ClassVar[dict[str, AgentContract]] = {}
 
@@ -200,7 +226,9 @@ class ContractRegistry:
         self._contracts[agent_name] = contract
         logger.info(f"Contract registered: {agent_name} v{contract.version.value}")
 
-    def validate(self, agent_name: str, output: dict[str, Any]) -> tuple[dict[str, Any], list]:
+    def validate(
+        self, agent_name: str, output: dict[str, Any]
+    ) -> tuple[dict[str, Any], list]:
         """验证 Agent 输出是否符合契约"""
         contract = self.get(agent_name)
         if not contract:

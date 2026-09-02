@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useChatStore } from "../stores/chatStore";
 import { api } from "../api/client";
 import AddWatchlistDialog from "./AddWatchlistDialog";
-import { LayersIcon, PlusIcon, XIcon, LayoutDashboardIcon, WalletIcon, TrendingUpIcon, ArrowUpIcon, ArrowDownIcon, EyeIcon, EyeOffIcon } from "./Icon";
+import { LayersIcon, PlusIcon, XIcon, CheckIcon, LayoutDashboardIcon, WalletIcon, TrendingUpIcon, ArrowUpIcon, ArrowDownIcon, EyeIcon, EyeOffIcon } from "./Icon";
 
 const fmt2 = (v: number) => v.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const toBeijing = (s: string) => { try { return new Date(s.includes("T") ? s : s.replace(" ", "T") + "Z").toLocaleDateString("zh-CN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }); } catch { return s; } };
@@ -14,13 +14,38 @@ const Pct = ({ v, size = 10 }: { v: number; size?: number }) => (
   </span>
 );
 
-export default function Sidebar() {
+/* 两段式删除按钮：首次点击进入确认态（红底脉冲），2.5s 内再点才执行，替代原生 confirm 弹窗 */
+function ArmDeleteButton({ onConfirm, title = "删除", titleArm = "再次点击确认" }: { onConfirm: () => void; title?: string; titleArm?: string }) {
+  const [arm, setArm] = useState(false);
+  const timer = useRef<number | null>(null);
+  useEffect(() => () => { if (timer.current) window.clearTimeout(timer.current); }, []);
+  return (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        if (arm) { onConfirm(); return; }
+        setArm(true);
+        timer.current = window.setTimeout(() => setArm(false), 2500);
+      }}
+      title={arm ? titleArm : title}
+      aria-label={arm ? titleArm : title}
+      className={`icon-btn w-6 h-6 rounded-md opacity-0 group-hover:opacity-100 transition-all ${
+        arm ? "text-danger bg-danger/15 border border-danger/30" : "hover:text-danger hover:bg-elevated"
+      }`}
+    >
+      {arm ? <CheckIcon size={12} /> : <XIcon size={11} />}
+    </button>
+  );
+}
+
+export default function Sidebar({ className = "" }: { className?: string }) {
   const { watchlist, portfolio, activeSymbol, conversations, conversationId, loadWatchlist, loadPortfolio, loadActiveOrders, loadConversations, sendMessage, loadConversation, newConversation, openStockDetail, removeFromWatchlist } = useChatStore();
   const [addOpen, setAddOpen] = useState(false);
   const [maskAssets, setMaskAssets] = useState(false);
   const [now, setNow] = useState(new Date());
   const priceRef = useRef<Record<string, number>>({});
   const [flashMap, setFlashMap] = useState<Record<string, "up" | "down">>({});
+  const [assetHistory, setAssetHistory] = useState<number[]>([]);
 
   useEffect(() => {
     const c = setInterval(() => setNow(new Date()), 1000);
@@ -37,11 +62,30 @@ export default function Sidebar() {
 
   const money = (v: number) => (maskAssets ? "••••" : fmt2(v));
 
-  useEffect(() => { loadWatchlist(); loadPortfolio(); loadActiveOrders(); loadConversations(); }, []);
+  // zustand action 引用稳定，首屏只执行一次
+  useEffect(() => { loadWatchlist(); loadPortfolio(); loadActiveOrders(); loadConversations(); }, [loadWatchlist, loadPortfolio, loadActiveOrders, loadConversations]);
   useEffect(() => {
     const t = setInterval(() => { loadWatchlist(); loadPortfolio(); loadActiveOrders(); }, 3000);
     return () => clearInterval(t);
   }, [loadWatchlist, loadPortfolio, loadActiveOrders]);
+
+  // 总资产近30日走势（仅取有效数值点）
+  useEffect(() => {
+    let c = false;
+    const load = () =>
+      api.portfolioHistory(30)
+        .then((r: { history?: any[] }) => {
+          if (c) return;
+          const pts = (r.history || [])
+            .map((h: any) => Number(h?.total_assets))
+            .filter((n: number) => Number.isFinite(n) && n > 0);
+          if (pts.length) setAssetHistory(pts);
+        })
+        .catch(() => {});
+    load();
+    const t = setInterval(load, 30000);
+    return () => { c = true; clearInterval(t); };
+  }, []);
 
   useEffect(() => {
     const next: Record<string, "up" | "down"> = {};
@@ -56,7 +100,7 @@ export default function Sidebar() {
   }, [watchlist]);
 
   return (
-    <aside className="w-[240px] xl:w-[280px] h-full glass border-r border-border-strong flex flex-col flex-shrink-0 overflow-hidden">
+    <aside className={`w-[240px] xl:w-[280px] h-full glass border-r border-border-strong flex flex-col flex-shrink-0 overflow-hidden ${className}`}>
       <div className="px-4 h-12 border-b border-border flex items-center gap-2.5 flex-shrink-0">
         <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-accent/20 to-accent/5 border border-accent/20 flex items-center justify-center text-accent flex-shrink-0"><LayersIcon size={16} /></div>
         <h1 className="flex-1 min-w-0 text-[13px] font-bold text-text-primary tracking-tight truncate">PaperTradeAgent</h1>
@@ -80,8 +124,7 @@ export default function Sidebar() {
                 <div className="text-[12px] font-medium truncate">{c.title || "新会话"}</div>
                 <div className="text-[11px] text-text-muted mt-0.5">{toBeijing(c.updated_at)}</div>
               </div>
-              <button onClick={async (e) => { e.stopPropagation(); await api.deleteConversation(c.id); loadConversations(); }}
-                className="icon-btn w-6 h-6 rounded-md opacity-0 group-hover:opacity-100 hover:text-danger"><XIcon size={11} /></button>
+              <ArmDeleteButton onConfirm={() => { api.deleteConversation(c.id).then(() => loadConversations()); }} title="删除会话" titleArm="再次点击确认删除" />
             </div>
           ))}
           {Array.from({ length: Math.max(0, 5 - conversations.length) }).map((_, i) => (
@@ -92,17 +135,17 @@ export default function Sidebar() {
         </div>
       </div>
 
-        <div className="px-3 py-3 border-b border-border flex-shrink-0">
-          <h2 className="section-title px-1 mb-1.5">快捷操作</h2>
-          <div className="space-y-0.5">
-            <button onClick={() => sendMessage("查看持仓")} className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[12px] text-text-secondary hover:bg-hover hover:text-text-primary transition-colors">
-              <LayoutDashboardIcon size={15} className="text-accent/70 flex-shrink-0" />持仓概览
-            </button>
-            <button onClick={() => setAddOpen(true)} className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[12px] text-text-secondary hover:bg-hover hover:text-text-primary transition-colors">
-              <TrendingUpIcon size={15} className="text-success/70 flex-shrink-0" />添加自选
-            </button>
-          </div>
+      <div className="px-3 py-3 border-b border-border flex-shrink-0">
+        <h2 className="section-title px-1 mb-1.5">快捷操作</h2>
+        <div className="space-y-0.5">
+          <button onClick={() => sendMessage("查看持仓")} className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[12px] text-text-secondary hover:bg-hover hover:text-text-primary transition-colors">
+            <LayoutDashboardIcon size={15} className="text-accent/70 flex-shrink-0" />持仓概览
+          </button>
+          <button onClick={() => setAddOpen(true)} className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[12px] text-text-secondary hover:bg-hover hover:text-text-primary transition-colors">
+            <TrendingUpIcon size={15} className="text-success/70 flex-shrink-0" />添加自选
+          </button>
         </div>
+      </div>
 
         <div className="px-3 py-3 border-b border-border flex-shrink-0">
           <h2 className="section-title px-1 mb-1.5">自选股 ({watchlist.length})</h2>
@@ -113,7 +156,7 @@ export default function Sidebar() {
               <div className="text-[11px] text-text-disabled">点击「添加自选」开始关注</div>
             </div>
           ) : (
-            <div className="h-[256px] overflow-y-auto space-y-1 pr-0.5">
+            <div className="h-[256px] overflow-y-auto space-y-1 pr-0.5 scrollbar-thin">
               {watchlist.map((w) => (
                 <div key={w.symbol} onClick={() => openStockDetail(w.symbol, w.name)}
                   className={`group flex items-center gap-2 px-2.5 py-2 rounded-lg cursor-pointer border transition-colors ${activeSymbol === w.symbol ? "bg-accent-soft border-accent/20" : "border-transparent hover:bg-hover"}`}>
@@ -127,8 +170,7 @@ export default function Sidebar() {
                       {typeof w.change_pct === "number" && <span className="text-[11px]"><Pct v={w.change_pct} /></span>}
                     </div>
                   </div>
-                  <button onClick={(e) => { e.stopPropagation(); if (confirm(`移除 ${w.name}？`)) removeFromWatchlist(w.symbol); }}
-                    className="icon-btn w-6 h-6 rounded-md opacity-0 group-hover:opacity-100 hover:text-danger"><XIcon size={11} /></button>
+                  <ArmDeleteButton onConfirm={() => removeFromWatchlist(w.symbol)} title={`移除 ${w.name}`} titleArm="再次点击确认移除" />
                 </div>
               ))}
             </div>
@@ -138,7 +180,7 @@ export default function Sidebar() {
         {portfolio && (
           <div className="px-3 py-3 flex-1 min-h-0 flex flex-col">
             <h2 className="section-title px-1 mb-1.5 flex items-center gap-1.5 flex-shrink-0"><WalletIcon size={12} />账户资产</h2>
-            <div className="card p-3 space-y-2.5 flex-shrink-0">
+            <div className="asset-glow rounded-2xl p-3 space-y-2.5 flex-shrink-0" title="总资产=可用资金+在途冻结+持仓市值">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <div className="text-[11px] text-text-muted">总资产</div>
@@ -149,9 +191,18 @@ export default function Sidebar() {
                 </button>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <div className="min-w-0"><div className="text-[11px] text-text-muted">可用资金</div><div className="font-data text-[11px] text-text-secondary truncate">{money(portfolio.balance)}</div></div>
+                <div className="min-w-0" title={portfolio.locked_balance > 0 ? `已扣在途委托锁定 ${money(portfolio.locked_balance)}` : "可用资金 = 现金余额 − 在途委托锁定"}>
+                  <div className="text-[11px] text-text-muted">可用资金</div>
+                  <div className="font-data text-[11px] text-text-secondary truncate">{money(portfolio.available_balance ?? portfolio.balance)}</div>
+                </div>
                 <div className="min-w-0"><div className="text-[11px] text-text-muted">持仓市值</div><div className="font-data text-[11px] text-text-secondary truncate">{money(portfolio.total_market_value)}</div></div>
               </div>
+              {portfolio.locked_balance > 0 && (
+                <div className="flex items-center justify-between text-[10px] text-text-disabled">
+                  <span>在途冻结</span>
+                  <span className="font-data">{money(portfolio.locked_balance)}</span>
+                </div>
+              )}
               <div className="border-t border-border pt-2 flex items-center justify-between gap-2">
                 <span className="text-[11px] text-text-muted flex-shrink-0">累计盈亏</span>
                 <span className={`font-data text-[11px] font-semibold inline-flex items-center gap-1 flex-shrink-0 ${portfolio.total_pnl >= 0 ? "text-up" : "text-down"}`}>
@@ -159,10 +210,30 @@ export default function Sidebar() {
                   {maskAssets ? "••••" : `${portfolio.total_pnl >= 0 ? "+" : ""}${fmt2(portfolio.total_pnl)} (${portfolio.total_pnl_pct.toFixed(2)}%)`}
                 </span>
               </div>
+              {!maskAssets && assetHistory.length > 1 && (() => {
+                const min = Math.min(...assetHistory);
+                const max = Math.max(...assetHistory);
+                const span = max - min || 1;
+                const W = 240, H = 40, PAD = 2;
+                const pts = assetHistory.map((v, i) =>
+                  `${(i / (assetHistory.length - 1)) * W},${H - PAD - ((v - min) / span) * (H - PAD * 2)}`
+                ).join(" ");
+                const lastY = Number(pts.split(" ").at(-1)?.split(",")[1] ?? H / 2);
+                const up = (assetHistory[assetHistory.length - 1] ?? 0) >= (assetHistory[0] ?? 0);
+                const stroke = up ? "#4ade80" : "#f87171";
+                return (
+                  <div className="pt-1" title="近30日总资产走势">
+                    <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="block">
+                      <polyline points={pts} fill="none" stroke={stroke} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" opacity="0.85" />
+                      <circle cx={(assetHistory.length - 1) / (assetHistory.length - 1) * W} cy={lastY} r="2" fill={stroke} />
+                    </svg>
+                  </div>
+                );
+              })()}
             </div>
 
             {portfolio.positions.length > 0 && (
-              <div className="mt-3 min-h-0 flex-1 overflow-y-auto">
+              <div className="mt-3 min-h-0 flex-1 overflow-y-auto scrollbar-thin">
                 <h3 className="section-title px-1 mb-1.5 flex-shrink-0">持仓明细</h3>
                 <div className="space-y-1.5">
                   {portfolio.positions.map((p) => {
@@ -185,10 +256,11 @@ export default function Sidebar() {
                         <div className="min-w-0 text-right"><div className="text-[11px] text-text-muted">盈亏%</div><Pct v={p.pnl_pct} /></div>
                       </div>
                       <div className="flex items-center justify-between mt-2 text-[11px] text-text-muted">
-                        <span className="font-data">持仓 {p.quantity}股</span>
+                        <span className="font-data">持仓 {p.quantity}股 · 成本{p.total_cost != null ? fmt2(p.total_cost) : fmt2(p.avg_cost * p.quantity)}</span>
                         <span className="inline-flex items-center gap-1 flex-shrink-0">
-                          <span className="chip bg-elevated border-border text-text-muted">{p.sellable_quantity ?? p.quantity}股可卖</span>
-                          {p.t1_quantity > 0 && <span className="chip bg-input-bg border-border text-text-muted">{p.t1_quantity}冻结</span>}
+                          <span className="chip bg-elevated border-border text-text-muted">{p.tradable_quantity ?? p.sellable_quantity ?? p.quantity}股可卖</span>
+                          {p.t1_quantity > 0 && <span className="chip bg-input-bg border-border text-text-muted">T+1 {p.t1_quantity}</span>}
+                          {(p.locked_shares ?? 0) > 0 && <span className="chip bg-warning-soft border-warning/20 text-warning">挂单 {p.locked_shares}</span>}
                         </span>
                       </div>
                     </div>

@@ -37,7 +37,9 @@ def _tool_parameters(t) -> dict:
         # 去掉 property 里的 title/default，保留 type/description/enum 等
         props = {}
         for k, v in full.get("properties", {}).items():
-            props[k] = {kk: vv for kk, vv in v.items() if kk not in ("title", "default")}
+            props[k] = {
+                kk: vv for kk, vv in v.items() if kk not in ("title", "default")
+            }
         parameters = {"type": "object", "properties": props}
         required = full.get("required")
         if required:
@@ -50,14 +52,16 @@ def _tools_to_schema(tools: list[Any]) -> list[dict]:
     """将 LangChain @tool 对象转为 OpenAI function-calling schema"""
     schemas = []
     for t in tools:
-        schemas.append({
-            "type": "function",
-            "function": {
-                "name": t.name,
-                "description": (t.description or "").strip(),
-                "parameters": _tool_parameters(t),
-            },
-        })
+        schemas.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": t.name,
+                    "description": (t.description or "").strip(),
+                    "parameters": _tool_parameters(t),
+                },
+            }
+        )
     return schemas
 
 
@@ -108,11 +112,13 @@ async def run_tool_agent(
         if not tool_calls:
             return content, trace
 
-        messages.append({
-            "role": "assistant",
-            "content": content,
-            "tool_calls": tool_calls,
-        })
+        messages.append(
+            {
+                "role": "assistant",
+                "content": content,
+                "tool_calls": tool_calls,
+            }
+        )
 
         for tc in tool_calls:
             fn = tc.get("function", {})
@@ -141,14 +147,20 @@ async def run_tool_agent(
             # L5 工具调用次数归集：接入 MetricsCollector，服务端指标可见
             metrics = MetricsCollector()
             metrics.record(MetricType.TOOL_CALL_COUNT)
-            metrics.record(MetricType.TOOL_CALL_SUCCESS if success else MetricType.TOOL_CALL_FALLBACK)
+            metrics.record(
+                MetricType.TOOL_CALL_SUCCESS
+                if success
+                else MetricType.TOOL_CALL_FALLBACK
+            )
 
             trace.append({"tool": name, "args": args})
-            messages.append({
-                "role": "tool",
-                "tool_call_id": tc.get("id", f"call_{_round}_{name}"),
-                "content": json.dumps(result, ensure_ascii=False, default=str),
-            })
+            messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tc.get("id", f"call_{_round}_{name}"),
+                    "content": json.dumps(result, ensure_ascii=False, default=str),
+                }
+            )
 
     # 达到最大轮数仍未收敛：返回最后一轮 content，交由上层判定
     return content, trace

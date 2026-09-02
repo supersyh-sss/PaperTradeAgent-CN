@@ -157,6 +157,20 @@ body {
   background-color: #0b1221;
 }
 .input-num { text-align: center; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+/* 深色主题下隐藏 number 输入框默认微调箭头（布局内已提供 ±/现价按钮） */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+/* 深色主题下浏览器 autofill 的背景/文字修正（避免黄/白底突兀） */
+.input:-webkit-autofill,
+.input:-webkit-autofill:hover,
+.input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--color-text-primary);
+  -webkit-box-shadow: 0 0 0 1000px var(--color-input-bg) inset;
+  box-shadow: 0 0 0 1000px var(--color-input-bg) inset;
+  transition: background-color 9999s ease-out 0s;
+  caret-color: var(--color-text-primary);
+}
 .icon-btn {
   display: inline-flex;
   align-items: center;
@@ -217,8 +231,12 @@ body {
   gap: 6px;
   border-radius: 10px;
   border: 1px solid transparent;
+  font-family: inherit;
   font-weight: 600;
   cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  white-space: nowrap;
   transition: all var(--duration-fast) var(--ease-standard);
 }
 .btn:disabled { opacity: 0.4; pointer-events: none; }
@@ -322,6 +340,85 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .cli-dot:nth-child(3) { animation-delay: 0.3s; }
 .cli-dot:nth-child(4) { animation-delay: 0.45s; }
 .cli-dot:nth-child(5) { animation-delay: 0.6s; }
+
+/* ── 弹窗/浮层统一入场动画 ── */
+@keyframes dialogIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.dialog-enter { animation: dialogIn 0.28s var(--ease-out-expo) forwards; }
+@keyframes backdropIn { from { opacity: 0; } to { opacity: 1; } }
+.backdrop-enter { animation: backdropIn 0.22s ease-out forwards; }
+@keyframes slideInLeft { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+.slide-in-left { animation: slideInLeft 0.28s var(--ease-out-expo) forwards; }
+
+/* ── 骨架屏（数据加载占位） ── */
+@keyframes shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
+.skeleton {
+  position: relative;
+  border-radius: 8px;
+  background: linear-gradient(90deg, rgba(148, 163, 184, 0.06) 25%, rgba(148, 163, 184, 0.14) 50%, rgba(148, 163, 184, 0.06) 75%);
+  background-size: 800px 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+/* ── 数字徽章（涨/跌/信息角标） ── */
+.num-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* ── 内部滚动区域细滚动条（侧边栏/列表） ── */
+.scrollbar-thin::-webkit-scrollbar { width: 4px; height: 4px; }
+.scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.16); border-radius: 2px; }
+.scrollbar-thin::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.32); }
+
+/* ── 图标按钮按压反馈 ── */
+.icon-btn:active { transform: scale(0.92); }
+
+/* ── 选项卡（settings / 面板切换） ── */
+.tab-item {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  transition: color var(--duration-fast), background-color var(--duration-fast);
+  cursor: pointer;
+  border: none;
+  background: transparent;
+}
+.tab-item:hover { color: var(--color-text-secondary); background: var(--color-hover); }
+.tab-item-active { color: var(--color-accent); background: var(--color-accent-soft); }
+.tab-item-active:hover { color: var(--color-accent); }
+
+/* ── 数值滚动时的闪动保护（避免布局抖动） ── */
+.tabular-nums { font-variant-numeric: tabular-nums; }
+
+/* ── 数据卡片网格分隔线（交易面板费用区） ── */
+.divider-x { border-left: 1px solid var(--color-border); }
+
+/* ── 侧栏账户卡片的渐变光晕 ── */
+.asset-glow {
+  background:
+    radial-gradient(120px 60px at 100% 0%, rgba(96, 165, 250, 0.14) 0%, transparent 70%),
+    linear-gradient(180deg, rgba(30, 41, 59, 0.36) 0%, var(--color-surface-secondary) 100%);
+  border: 1px solid rgba(96, 165, 250, 0.16);
+}
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }

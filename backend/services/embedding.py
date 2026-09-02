@@ -8,6 +8,7 @@
   - 国内网络走 HF_ENDPOINT 镜像（hf-mirror.com）
   - 任何异常都返回 None，由上层降级到 n-gram，保证系统不因嵌入不可用而崩溃
 """
+
 import logging
 import os
 from pathlib import Path
@@ -40,6 +41,7 @@ def get_embedder():
         _ensure_hf_mirror()
         os.makedirs(_CACHE_DIR, exist_ok=True)
         from fastembed import TextEmbedding
+
         _embedder = TextEmbedding(
             model_name=EMBEDDING_MODEL,
             cache_dir=_CACHE_DIR,
@@ -47,7 +49,9 @@ def get_embedder():
         )
         # 预热加载，尽早暴露下载/推理失败
         list(_embedder.embed(["预热"]))
-        logger.info("Embedding 模型已加载：%s (device=%s)", EMBEDDING_MODEL, EMBEDDING_DEVICE)
+        logger.info(
+            "Embedding 模型已加载：%s (device=%s)", EMBEDDING_MODEL, EMBEDDING_DEVICE
+        )
         return _embedder
     except Exception as e:
         _embedder_failed = True

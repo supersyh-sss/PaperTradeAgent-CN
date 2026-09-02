@@ -3,6 +3,7 @@
 为每个 HTTP 请求生成唯一 trace_id，通过 ContextVar 在线程/协程间传递，
 确保同一请求的所有日志自动关联到同一 trace_id。
 """
+
 import logging
 import time
 

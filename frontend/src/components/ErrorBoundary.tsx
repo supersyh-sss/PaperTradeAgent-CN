@@ -40,7 +40,7 @@ export class ErrorBoundary extends Component<Props, State> {
             height: "100vh",
             background: "#030712",
             color: "#f8fafc",
-            fontFamily: "'Inter', 'SF Mono', monospace",
+            fontFamily: "'Inter', -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif",
             padding: "2rem",
             textAlign: "center",
             gap: "1.5rem",
@@ -48,23 +48,17 @@ export class ErrorBoundary extends Component<Props, State> {
         >
           <div
             style={{
-              fontSize: "3rem",
+              fontSize: "2.5rem",
               fontWeight: 700,
               color: "#f87171",
               letterSpacing: "-0.02em",
+              fontFamily: "'JetBrains Mono', monospace",
             }}
           >
             //
           </div>
-          <h1
-            style={{
-              fontSize: "1.5rem",
-              fontWeight: 600,
-              color: "#f8fafc",
-              margin: 0,
-            }}
-          >
-            Something went wrong
+          <h1 style={{ fontSize: "1.4rem", fontWeight: 600, color: "#f8fafc", margin: 0 }}>
+            界面渲染出现异常
           </h1>
           <p
             style={{
@@ -75,32 +69,35 @@ export class ErrorBoundary extends Component<Props, State> {
               margin: 0,
             }}
           >
-            An unexpected rendering error occurred. This is likely a temporary
-            issue — please try reloading the application.
+            这通常是一个临时问题，请尝试刷新页面。
+            {this.state.error?.message && (
+              <span style={{ display: "block", marginTop: "0.5rem", fontFamily: "'JetBrains Mono', monospace", fontSize: "0.75rem", color: "#475569", wordBreak: "break-all" }}>
+                {this.state.error.message}
+              </span>
+            )}
           </p>
           <button
             onClick={this.handleRetry}
             style={{
               padding: "0.625rem 1.5rem",
               fontSize: "0.875rem",
-              fontWeight: 500,
+              fontWeight: 600,
               color: "#f8fafc",
-              background: "rgba(96, 165, 250, 0.12)",
-              border: "1px solid rgba(148, 163, 184, 0.22)",
-              borderRadius: "6px",
+              background: "linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%)",
+              border: "1px solid rgba(96, 165, 250, 0.4)",
+              borderRadius: "10px",
               cursor: "pointer",
-              transition: "background 0.15s",
+              transition: "filter 0.15s",
+              boxShadow: "0 4px 16px rgba(59, 130, 246, 0.28)",
             }}
             onMouseEnter={(e) => {
-              (e.target as HTMLButtonElement).style.background =
-                "rgba(96, 165, 250, 0.22)";
+              (e.target as HTMLButtonElement).style.filter = "brightness(1.08)";
             }}
             onMouseLeave={(e) => {
-              (e.target as HTMLButtonElement).style.background =
-                "rgba(96, 165, 250, 0.12)";
+              (e.target as HTMLButtonElement).style.filter = "brightness(1)";
             }}
           >
-            Retry
+            重新加载
           </button>
         </div>
       );

@@ -1,0 +1,26 @@
+# 构建上下文过滤：保持镜像最小化，避免缓存/密钥/大目录被 COPY 进镜像
+.git
+.venv
+venv
+env
+__pycache__
+*.py[cod]
+*.log
+*.db-shm
+*.db-wal
+.env
+
+# 前端产物与依赖（frontend 有自己的 .dockerignore 语境，此处一并排除其重产物）
+frontend/node_modules
+frontend/dist
+frontend/.vite
+
+# 测试与文档不进入运行镜像
+tests
+docs
+.github
+Makefile
+.dockerignore
+*.md
+.pytest_cache
+.ruff_cache

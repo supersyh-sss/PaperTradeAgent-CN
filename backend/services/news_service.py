@@ -8,6 +8,7 @@
 
 Cache: 60 秒 TTL，避免频繁调用触发限流
 """
+
 import asyncio
 import json as json_mod
 import logging
@@ -78,7 +79,7 @@ def _parse_jsonp(text: str) -> dict:
     if start == -1 or end == -1 or end <= start:
         return {}
     try:
-        return json_mod.loads(text[start + 1:end])
+        return json_mod.loads(text[start + 1 : end])
     except Exception:
         return {}
 
@@ -98,6 +99,7 @@ def _dedupe_sort(items: list) -> list:
 
 
 # ─────────────────────────── 数据源 ───────────────────────────
+
 
 async def _fetch_eastmoney_headlines() -> list:
     """东方财富栏目新闻（国内经济 350 + 国际 351）"""
@@ -121,20 +123,24 @@ async def _fetch_eastmoney_headlines() -> list:
                 data = resp.json()
                 records = data.get("data", {}).get("list", []) or []
                 for item in records:
-                    items.append({
-                        "title": item.get("title", ""),
-                        "source": item.get("mediaName", "东方财富"),
-                        "url": item.get("url", "") or item.get("uniqueUrl", ""),
-                        "time": _norm_time(item.get("showTime", "")),
-                        "summary": item.get("summary", "") or item.get("title", ""),
-                        "symbols": [],
-                    })
+                    items.append(
+                        {
+                            "title": item.get("title", ""),
+                            "source": item.get("mediaName", "东方财富"),
+                            "url": item.get("url", "") or item.get("uniqueUrl", ""),
+                            "time": _norm_time(item.get("showTime", "")),
+                            "summary": item.get("summary", "") or item.get("title", ""),
+                            "symbols": [],
+                        }
+                    )
         except Exception:
             logger.debug("东方财富栏目新闻抓取失败 column=%s", column, exc_info=True)
     return items
 
 
-async def _fetch_eastmoney_search(keyword: str, page: int = 1, page_size: int = 10) -> list:
+async def _fetch_eastmoney_search(
+    keyword: str, page: int = 1, page_size: int = 10
+) -> list:
     """东方财富全站资讯关键词搜索（cmsArticleWebOld）。"""
     items = []
     if not keyword:
@@ -161,7 +167,12 @@ async def _fetch_eastmoney_search(keyword: str, page: int = 1, page_size: int = 
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.get(
                 "https://search-api-web.eastmoney.com/search/jsonp",
-                params={"cb": "cb", "param": json_mod.dumps(param, ensure_ascii=False, separators=(",", ":"))},
+                params={
+                    "cb": "cb",
+                    "param": json_mod.dumps(
+                        param, ensure_ascii=False, separators=(",", ":")
+                    ),
+                },
                 headers={"Referer": "https://so.eastmoney.com/", "User-Agent": _UA},
             )
             data = _parse_jsonp(resp.text)
@@ -169,14 +180,16 @@ async def _fetch_eastmoney_search(keyword: str, page: int = 1, page_size: int = 
             for item in records:
                 title = re.sub(r"</?em>", "", item.get("title", ""))
                 content = re.sub(r"</?em>", "", item.get("content", ""))
-                items.append({
-                    "title": title,
-                    "source": item.get("mediaName", "东方财富"),
-                    "url": item.get("url", ""),
-                    "time": _norm_time(item.get("date", "")),
-                    "summary": content,
-                    "symbols": [],
-                })
+                items.append(
+                    {
+                        "title": title,
+                        "source": item.get("mediaName", "东方财富"),
+                        "url": item.get("url", ""),
+                        "time": _norm_time(item.get("date", "")),
+                        "summary": content,
+                        "symbols": [],
+                    }
+                )
     except Exception:
         logger.debug("东方财富关键词搜索失败 keyword=%s", keyword, exc_info=True)
     return items
@@ -194,14 +207,16 @@ async def _fetch_cls_news() -> list:
             data = resp.json()
             roll_data = data.get("data", {}).get("roll_data", [])
             for item in (roll_data or [])[:10]:
-                items.append({
-                    "title": item.get("title", ""),
-                    "source": "财联社",
-                    "url": f"https://www.cls.cn/detail/{item.get('id', '')}",
-                    "time": _norm_time(item.get("ctime", 0)),
-                    "summary": item.get("brief", "") or item.get("title", ""),
-                    "symbols": [],
-                })
+                items.append(
+                    {
+                        "title": item.get("title", ""),
+                        "source": "财联社",
+                        "url": f"https://www.cls.cn/detail/{item.get('id', '')}",
+                        "time": _norm_time(item.get("ctime", 0)),
+                        "summary": item.get("brief", "") or item.get("title", ""),
+                        "symbols": [],
+                    }
+                )
     except Exception:
         logger.debug("财联社新闻抓取失败", exc_info=True)
     return items
@@ -220,15 +235,21 @@ async def _fetch_sina_finance() -> list:
             data = resp.json()
             for item in data.get("result", {}).get("data", [])[:15]:
                 ctime = item.get("ctime", "")
-                tm = _norm_time(int(ctime)) if str(ctime).isdigit() else _norm_time(ctime)
-                items.append({
-                    "title": item.get("title", ""),
-                    "source": "新浪财经",
-                    "url": item.get("url", ""),
-                    "time": tm,
-                    "summary": item.get("intro", "") or item.get("title", ""),
-                    "symbols": [],
-                })
+                tm = (
+                    _norm_time(int(ctime))
+                    if str(ctime).isdigit()
+                    else _norm_time(ctime)
+                )
+                items.append(
+                    {
+                        "title": item.get("title", ""),
+                        "source": "新浪财经",
+                        "url": item.get("url", ""),
+                        "time": tm,
+                        "summary": item.get("intro", "") or item.get("title", ""),
+                        "symbols": [],
+                    }
+                )
     except Exception:
         logger.debug("新浪财经新闻抓取失败", exc_info=True)
     return items
@@ -270,6 +291,7 @@ async def _fetch_eastmoney_stock_news(symbol: str) -> list:
 #  SQLite 持久化
 # ═══════════════════════════════════════════════════════════
 
+
 async def save_news_to_db(news_items: list) -> int:
     """持久化新闻到 SQLite，按 (title, source) 去重"""
     if not news_items:
@@ -279,16 +301,20 @@ async def save_news_to_db(news_items: list) -> int:
 
         values = []
         for item in news_items:
-            symbols_str = ",".join(item.get("symbols", [])) if item.get("symbols") else None
-            values.append((
-                item.get("title", ""),
-                item.get("source", ""),
-                item.get("url", ""),
-                item.get("summary", "") or item.get("content", ""),
-                symbols_str,
-                item.get("sentiment_score", 0),
-                item.get("time", ""),
-            ))
+            symbols_str = (
+                ",".join(item.get("symbols", [])) if item.get("symbols") else None
+            )
+            values.append(
+                (
+                    item.get("title", ""),
+                    item.get("source", ""),
+                    item.get("url", ""),
+                    item.get("summary", "") or item.get("content", ""),
+                    symbols_str,
+                    item.get("sentiment_score", 0),
+                    item.get("time", ""),
+                )
+            )
 
         db = await get_db()
         try:
@@ -335,16 +361,24 @@ async def get_cached_news(symbol: str | None = None, limit: int = 20) -> list:
             result = []
             for row in rows:
                 d = dict(row)
-                result.append({
-                    "title": d.get("title", ""),
-                    "source": d.get("source", ""),
-                    "url": d.get("url", ""),
-                    "time": d.get("crawled_at", ""),
-                    "summary": d.get("content", ""),
-                    "symbols": [s.strip() for s in d.get("symbols", "").split(",") if s.strip()] if d.get("symbols") else [],
-                    "sentiment_score": d.get("sentiment_score", 0),
-                    "created_at": d.get("created_at", ""),
-                })
+                result.append(
+                    {
+                        "title": d.get("title", ""),
+                        "source": d.get("source", ""),
+                        "url": d.get("url", ""),
+                        "time": d.get("crawled_at", ""),
+                        "summary": d.get("content", ""),
+                        "symbols": [
+                            s.strip()
+                            for s in d.get("symbols", "").split(",")
+                            if s.strip()
+                        ]
+                        if d.get("symbols")
+                        else [],
+                        "sentiment_score": d.get("sentiment_score", 0),
+                        "created_at": d.get("created_at", ""),
+                    }
+                )
             return result
         finally:
             await db.close()
@@ -354,6 +388,7 @@ async def get_cached_news(symbol: str | None = None, limit: int = 20) -> list:
 
 
 # 公开 API
+
 
 async def get_market_news() -> dict:
     """获取综合市场新闻
@@ -387,14 +422,16 @@ async def get_market_news() -> dict:
 
     if not deduped:
         logger.warning("所有新闻源均无法访问，返回空结果")
-        deduped = [{
-            "title": "暂时无法获取实时新闻数据",
-            "source": "系统",
-            "url": "",
-            "time": datetime.now(BJT).strftime("%Y-%m-%d %H:%M"),
-            "summary": "网络连接异常或所有新闻源暂时不可用，请稍后再试",
-            "symbols": [],
-        }]
+        deduped = [
+            {
+                "title": "暂时无法获取实时新闻数据",
+                "source": "系统",
+                "url": "",
+                "time": datetime.now(BJT).strftime("%Y-%m-%d %H:%M"),
+                "summary": "网络连接异常或所有新闻源暂时不可用，请稍后再试",
+                "symbols": [],
+            }
+        ]
         source = "fallback"
     else:
         source = "live"
@@ -435,6 +472,7 @@ async def get_stock_news(symbol: str) -> dict:
         try:
             from .stock_lookup import resolve
             from .symbol import pure_code
+
             code = pure_code(symbol)
             info = resolve(code) or {}
             kw = info.get("name") or code
@@ -460,14 +498,16 @@ async def get_stock_news(symbol: str) -> dict:
             logger.debug("本地历史新闻回退失败 symbol=%s: %s", symbol, e)
 
     if not all_news:
-        all_news = [{
-            "title": f"暂无 {symbol} 相关新闻",
-            "source": "系统",
-            "url": "",
-            "time": datetime.now(BJT).strftime("%Y-%m-%d %H:%M"),
-            "summary": "未找到该股票相关的最新新闻",
-            "symbols": [symbol],
-        }]
+        all_news = [
+            {
+                "title": f"暂无 {symbol} 相关新闻",
+                "source": "系统",
+                "url": "",
+                "time": datetime.now(BJT).strftime("%Y-%m-%d %H:%M"),
+                "summary": "未找到该股票相关的最新新闻",
+                "symbols": [symbol],
+            }
+        ]
         source = "fallback"
     else:
         source = "live"
@@ -494,10 +534,15 @@ async def search_news(keyword: str, limit: int = 10) -> dict:
     cache_key = f"search_news_{keyword}"
     cached = _get_cache(cache_key)
     if cached:
-        return {"data": cached[:limit], "count": min(len(cached), limit), "keyword": keyword}
+        return {
+            "data": cached[:limit],
+            "count": min(len(cached), limit),
+            "keyword": keyword,
+        }
 
     # 并行获取：东方财富关键词搜索 + 搜索引擎全网搜索（跨站资讯覆盖）
     from .web_search import search_web
+
     results = await asyncio.gather(
         _fetch_eastmoney_search(keyword, page=1, page_size=20),
         search_web(keyword, limit=limit),
@@ -545,15 +590,17 @@ async def get_breaking_news() -> dict:
         breaking.append(item)
 
     if not breaking:
-        breaking = [{
-            "title": "暂无突发新闻",
-            "source": "系统",
-            "url": "",
-            "time": datetime.now(BJT).strftime("%Y-%m-%d %H:%M"),
-            "summary": "当前时段无突发新闻",
-            "symbols": [],
-            "urgency": "info",
-        }]
+        breaking = [
+            {
+                "title": "暂无突发新闻",
+                "source": "系统",
+                "url": "",
+                "time": datetime.now(BJT).strftime("%Y-%m-%d %H:%M"),
+                "summary": "当前时段无突发新闻",
+                "symbols": [],
+                "urgency": "info",
+            }
+        ]
 
     _set_cache(cache_key, breaking)
     return {"data": breaking, "count": len(breaking)}

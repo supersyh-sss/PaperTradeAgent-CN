@@ -13,7 +13,7 @@ import SettingsDialog from "./SettingsDialog";
 import {
   getAgentProfile, LayersIcon, SearchIcon, TrendingUpIcon, ListIcon, LayoutDashboardIcon,
   SendIcon, BotIcon, TerminalIcon, MenuIcon, ExternalLinkIcon,
-  DownloadIcon, FileTextIcon, SquareIcon, CopyIcon, ChevronDownIcon, ChevronUpIcon, RefreshCwIcon,
+  DownloadIcon, FileTextIcon, SquareIcon, CopyIcon, CheckIcon, ChevronDownIcon, ChevronUpIcon, RefreshCwIcon,
   ThumbsUpIcon, ThumbsDownIcon, ThumbsUpFilledIcon, ThumbsDownFilledIcon, MaximizeIcon, MinimizeIcon,
   ShieldCheckIcon,
 } from "./Icon";
@@ -126,13 +126,29 @@ function renderAgentContent(text: string): string {
   return html;
 }
 
+/* ── 复制按钮（带"已复制"瞬时反馈）── */
+function CopyButton({ text, className = "" }: { text: string; className?: string }) {
+  const [ok, setOk] = useState(false);
+  return (
+    <button
+      onClick={() => { navigator.clipboard?.writeText(text).catch(() => {}); setOk(true); setTimeout(() => setOk(false), 1200); }}
+      className={`icon-btn w-6 h-6 rounded-md transition-colors ${className}`}
+      title={ok ? "已复制" : "复制"}
+      aria-label={ok ? "已复制" : "复制"}
+      style={ok ? { color: "#34d399" } : undefined}
+    >
+      {ok ? <CheckIcon size={12} /> : <CopyIcon size={12} />}
+    </button>
+  );
+}
+
 /* ── 消息操作（复制 / 赞 / 踩）── */
 function MessageActions({ agent, content }: { agent: string; content: string }) {
   const { feedback, sendFeedback } = useChatStore();
   const fb = feedback[hashContent(agent, content)];
   return (
-    <div className="flex items-center gap-1 mt-1.5">
-      <button onClick={() => navigator.clipboard?.writeText(content)} className="icon-btn w-6 h-6 rounded-md" title="复制"><CopyIcon size={12} /></button>
+    <div className="flex items-center gap-1 mt-1.5 opacity-60 group-hover:opacity-100 transition-opacity">
+      <CopyButton text={content} />
       <button onClick={() => sendFeedback(agent, content, "up")} className="icon-btn w-6 h-6 rounded-md" title={fb === "up" ? "取消赞" : "赞"} style={fb === "up" ? { color: "#34d399" } : {}}>
         {fb === "up" ? <ThumbsUpFilledIcon size={14} /> : <ThumbsUpIcon size={14} />}
       </button>
@@ -378,10 +394,10 @@ function MarketStatusBadge() {
   const dot = status === "trading" ? "bg-success" : status === "auction" ? "bg-warning" : "bg-text-muted";
   const label = trading === null ? "..." : status === "trading" ? "交易中" : status === "auction" ? "集合竞价" : "已休市";
   return (
-    <div className="flex items-center gap-2 flex-nowrap">
+    <div className="flex items-center gap-2 flex-nowrap" role="status" aria-label={`市场状态：${label}`}>
       <div className="relative flex-shrink-0 group">
         <div className="chip bg-surface-secondary/60 border-border px-2 py-0.5 hover:bg-hover transition-colors whitespace-nowrap cursor-default">
-          <span className="relative flex h-1.5 w-1.5">
+          <span className="relative flex h-1.5 w-1.5" aria-hidden="true">
             {status === "trading" && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-40" />}
             <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${dot}`} />
           </span>
@@ -407,16 +423,8 @@ function MarketStatusBadge() {
 
 /* ── 欢迎页 ── */
 function WelcomeScreen({ onSend, onInsert }: { onSend: (t: string) => void; onInsert: (t: string) => void }) {
-  const team = [
-    { key: "chief_strategist", desc: "全局研判与任务拆解" },
-    { key: "quant_researcher", desc: "技术指标与量化信号" },
-    { key: "market_intelligence", desc: "行情与资讯情报" },
-    { key: "trade_executor", desc: "交易计划与委托" },
-    { key: "portfolio_monitor", desc: "持仓与风控监控" },
-  ];
-  const triggers: Record<string, string> = {
-    chief_strategist: "@助手", quant_researcher: "@量化", market_intelligence: "@情报", trade_executor: "@交易", portfolio_monitor: "@风控",
-  };
+  const team = AT_AGENTS.map(({ key, desc }) => ({ key, desc }));
+  const triggers: Record<string, string> = Object.fromEntries(AT_AGENTS.map((a) => [a.key, a.trigger]));
   const chips = [
     { text: "分析茅台", icon: SearchIcon }, { text: "查看持仓", icon: LayoutDashboardIcon },
     { text: "买入100股招商银行", icon: TrendingUpIcon }, { text: "自选股管理", icon: ListIcon },
@@ -432,8 +440,8 @@ function WelcomeScreen({ onSend, onInsert }: { onSend: (t: string) => void; onIn
             <LayersIcon size={44} className="text-accent" />
           </div>
         </div>
-        <h1 className="text-[56px] leading-tight font-bold tracking-tighter text-gradient-animated mb-3">PaperTradeAgent</h1>
-        <p className="text-[16px] text-gradient-animated-accent font-medium tracking-[0.12em]">A股模拟交易 · 多 Agent 协作金融终端</p>
+        <h1 className="text-[40px] sm:text-[52px] leading-tight font-bold tracking-tighter text-gradient-animated mb-3">PaperTradeAgent</h1>
+        <p className="text-[13px] sm:text-[16px] text-gradient-animated-accent font-medium tracking-[0.12em]">A股模拟交易 · 多 Agent 协作金融终端</p>
       </div>
 
       <div className="absolute inset-x-0 top-1/2 pt-2 flex flex-col items-center gap-6 px-6">
@@ -479,7 +487,7 @@ export default function ChatArea() {
     generateReport, loadFeedback, connectSessionStream, conversationId,
   } = useChatStore();
   const [input, setInput] = useState("");
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 1024);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [profile, setProfile] = useState<{ nickname: string; avatar: string } | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -631,7 +639,17 @@ export default function ChatArea() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden">
-      {sidebarOpen && <Sidebar />}
+      {/* 桌面端：静态侧边栏 */}
+      <Sidebar className={`hidden ${sidebarOpen ? "lg:flex" : "lg:hidden"}`} />
+      {/* 移动端：抽屉式侧边栏 */}
+      {sidebarOpen && (
+        <>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
+          <div className="fixed inset-y-0 left-0 z-50 lg:hidden slide-in-left shadow-2xl">
+            <Sidebar />
+          </div>
+        </>
+      )}
       <div className="flex-1 flex flex-col min-w-0 overflow-x-hidden">
         <header className="h-12 border-b border-border glass-strong flex items-center px-3 gap-2 flex-shrink-0">
           <div className="flex items-center justify-start flex-1 min-w-0">
@@ -691,15 +709,15 @@ export default function ChatArea() {
                         <div className="max-w-[80%] flex flex-col items-end">
                           <div className="flex items-baseline gap-2 mb-1 pr-1">
                             <span className="text-xs font-semibold text-text-secondary">{profile?.nickname || "用户"}</span>
-                            <span className="text-[11px] text-text-muted">{fmtTime(msg.timestamp)}</span>
+                            <span className="text-[11px] text-text-muted font-data">{fmtTime(msg.timestamp)}</span>
                           </div>
                           <div className="rounded-2xl rounded-br-md px-4 py-3 text-[13px] leading-relaxed text-text-primary border border-blue-400/25 w-fit max-w-full whitespace-pre-wrap break-words"
                             style={{ background: "linear-gradient(135deg, rgba(59,130,246,0.16), rgba(139,92,246,0.10))" }}>
                             {msg.content}
                           </div>
-                          <div className="flex items-center gap-1 mt-1.5">
-                            <button onClick={() => navigator.clipboard?.writeText(msg.content)} className="icon-btn w-6 h-6 rounded-md" title="复制"><CopyIcon size={12} /></button>
-                            <button onClick={() => sendMessage(msg.content)} disabled={isLoading} className="icon-btn w-6 h-6 rounded-md disabled:opacity-40" title="重新生成"><RefreshCwIcon size={12} /></button>
+                          <div className="flex items-center gap-1 mt-1.5 opacity-60 group-hover:opacity-100 transition-opacity">
+                            <CopyButton text={msg.content} />
+                            <button onClick={() => sendMessage(msg.content)} disabled={isLoading} className="icon-btn w-6 h-6 rounded-md disabled:opacity-40" title="重新生成" aria-label="重新生成"><RefreshCwIcon size={12} /></button>
                           </div>
                         </div>
                         <UserAvatar avatar={profile?.avatar || ""} nickname={profile?.nickname || "用户"} size={32} />
@@ -726,6 +744,40 @@ export default function ChatArea() {
                               <div className="px-4 py-3 text-[13px] leading-relaxed text-text-secondary whitespace-pre-wrap break-words min-w-0">
                                 {m?.title && <div className="font-semibold mb-1" style={{ color }}>{m.title}</div>}
                                 <div>{msg.content}</div>
+                                {Array.isArray(m?.positions) && m.positions.length > 0 && (
+                                  <div className="mt-2.5 rounded-lg border border-border bg-surface-secondary/60 overflow-hidden max-w-[380px]">
+                                    <div className="px-2.5 py-1.5 text-[11px] font-semibold text-text-muted bg-elevated/60 flex items-center justify-between">
+                                      <span>当前持仓快照</span>
+                                      {typeof m.total_pnl_pct === "number" && (
+                                        <span className={`font-data ${m.total_pnl_pct >= 0 ? "text-up" : "text-down"}`}>组合 {m.total_pnl_pct >= 0 ? "+" : ""}{m.total_pnl_pct.toFixed(2)}%</span>
+                                      )}
+                                    </div>
+                                    <table className="w-full text-[11px] font-data">
+                                      <thead>
+                                        <tr className="text-text-disabled">
+                                          <th className="text-left px-2.5 py-1 font-normal">股票</th>
+                                          <th className="text-right px-2.5 py-1 font-normal">市值</th>
+                                          <th className="text-right px-2.5 py-1 font-normal">盈亏</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {m.positions.map((p: any) => (
+                                          <tr key={p.symbol} className="border-t border-border/60 hover:bg-hover/50">
+                                            <td className="px-2.5 py-1.5 text-text-primary">
+                                              <span className="block truncate max-w-[120px]">{p.name}</span>
+                                              <span className="text-[10px] text-text-muted">{p.symbol}</span>
+                                            </td>
+                                            <td className="text-right px-2.5 py-1.5 text-text-secondary">{typeof p.market_value === "number" ? p.market_value.toFixed(2) : "-"}</td>
+                                            <td className={`text-right px-2.5 py-1.5 font-semibold ${p.pnl >= 0 ? "text-up" : "text-down"}`}>
+                                              {p.pnl >= 0 ? "+" : ""}{typeof p.pnl === "number" ? p.pnl.toFixed(2) : "-"}
+                                              <span className="block text-[10px] font-normal">{p.pnl >= 0 ? "+" : ""}{typeof p.pnl_pct === "number" ? p.pnl_pct.toFixed(2) : "-"}%</span>
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                )}
                                 {m?.suggested_prompt && (
                                   <button onClick={() => sendMessage(m.suggested_prompt!)} disabled={isLoading}
                                     className="btn btn-secondary mt-2.5 px-3.5 py-1.5 text-[12px] disabled:opacity-50">

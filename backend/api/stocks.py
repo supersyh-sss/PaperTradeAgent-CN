@@ -1,4 +1,5 @@
 """股票数据 API - K线图、实时行情、股票搜索"""
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from ..middleware.error_handler import get_current_user
@@ -14,9 +15,11 @@ router = APIRouter(prefix="/api/stocks", tags=["stocks"])
 async def search_stocks(
     q: str = Query(..., min_length=1, description="搜索关键词（代码或名称）"),
     limit: int = Query(default=8, ge=1, le=20),
+    _: str = Depends(get_current_user),
 ):
     """根据关键词搜索A股股票（基于本地全量股票列表，无需API请求）"""
     from ..services.stock_lookup import get_count, get_date, search
+
     results = search(q, limit)
     return {
         "query": q,
@@ -60,7 +63,7 @@ async def get_kline(
             return [None] * len(values)
         result = [None] * (period - 1)
         for i in range(period - 1, len(values)):
-            avg = sum(values[i - period + 1:i + 1]) / period
+            avg = sum(values[i - period + 1 : i + 1]) / period
             result.append(round(avg, 2))
         return result
 
@@ -104,7 +107,7 @@ async def get_kline(
             "resistance": analysis.get("resistance"),
             "ma": analysis.get("ma", {}),
             "bollinger": analysis.get("bollinger", {}),
-        }
+        },
     }
 
 
@@ -114,6 +117,7 @@ async def get_realtime(symbol: str, user_id: str = Depends(get_current_user)):
     symbol = pure_code(symbol)
 
     from ..services.live_prices import add_hot_symbol, get_cached_price
+
     add_hot_symbol(symbol)
     cached = get_cached_price(symbol)
     if cached and cached.get("last_price"):

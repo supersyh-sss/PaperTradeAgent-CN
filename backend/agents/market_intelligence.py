@@ -1,4 +1,5 @@
 """市场动态感知官 Agent - 消息面分析"""
+
 import json as json_mod
 import logging
 from datetime import datetime
@@ -25,30 +26,68 @@ STOCK_INTEL_DB = {
         "sentiment_score": 0.35,
         "sentiment_label": "偏正面",
         "news": [
-            {"title": "贵州茅台发布半年报，净利润同比增长15%", "source": "巨潮资讯", "credibility": 0.95, "url": "http://www.cninfo.com.cn/new/disclosure/detail?stockCode=600519"},
-            {"title": "茅台启动新一轮渠道改革，直营比例有望提升", "source": "证券时报", "credibility": 0.85, "url": "https://www.stcn.com/article/detail/xxx.html"},
-            {"title": "北向资金连续3日加仓贵州茅台", "source": "东方财富", "credibility": 0.75, "url": "https://data.eastmoney.com/hsgtcg/StockHdDetail.aspx?stockCode=600519"},
+            {
+                "title": "贵州茅台发布半年报，净利润同比增长15%",
+                "source": "巨潮资讯",
+                "credibility": 0.95,
+                "url": "http://www.cninfo.com.cn/new/disclosure/detail?stockCode=600519",
+            },
+            {
+                "title": "茅台启动新一轮渠道改革，直营比例有望提升",
+                "source": "证券时报",
+                "credibility": 0.85,
+                "url": "https://www.stcn.com/article/detail/xxx.html",
+            },
+            {
+                "title": "北向资金连续3日加仓贵州茅台",
+                "source": "东方财富",
+                "credibility": 0.75,
+                "url": "https://data.eastmoney.com/hsgtcg/StockHdDetail.aspx?stockCode=600519",
+            },
         ],
         "announcements": [],
-        "impact": {"direction": "利好", "strength": "moderate", "reason": "业绩稳健增长，机构看好"},
+        "impact": {
+            "direction": "利好",
+            "strength": "moderate",
+            "reason": "业绩稳健增长，机构看好",
+        },
         "risk_alerts": [],
     },
     "sz300750": {
         "sentiment_score": 0.20,
         "sentiment_label": "偏正面",
         "news": [
-            {"title": "宁德时代发布新一代钠离子电池，能量密度提升30%", "source": "财联社", "credibility": 0.80, "url": "https://www.cls.cn/detail/xxx"},
-            {"title": "宁德时代与特斯拉达成新合作协议", "source": "东方财富", "credibility": 0.75, "url": "https://data.eastmoney.com/stockdata/300750.html"},
+            {
+                "title": "宁德时代发布新一代钠离子电池，能量密度提升30%",
+                "source": "财联社",
+                "credibility": 0.80,
+                "url": "https://www.cls.cn/detail/xxx",
+            },
+            {
+                "title": "宁德时代与特斯拉达成新合作协议",
+                "source": "东方财富",
+                "credibility": 0.75,
+                "url": "https://data.eastmoney.com/stockdata/300750.html",
+            },
         ],
         "announcements": [],
-        "impact": {"direction": "利好", "strength": "moderate", "reason": "技术突破+新客户合作"},
+        "impact": {
+            "direction": "利好",
+            "strength": "moderate",
+            "reason": "技术突破+新客户合作",
+        },
         "risk_alerts": [],
     },
     "sz002594": {
         "sentiment_score": 0.15,
         "sentiment_label": "中性偏正面",
         "news": [
-            {"title": "比亚迪8月新能源汽车销量创新高", "source": "证券时报", "credibility": 0.85, "url": "https://www.stcn.com/article/detail/xxx.html"},
+            {
+                "title": "比亚迪8月新能源汽车销量创新高",
+                "source": "证券时报",
+                "credibility": 0.85,
+                "url": "https://www.stcn.com/article/detail/xxx.html",
+            },
         ],
         "announcements": [],
         "impact": {"direction": "中性", "strength": "weak", "reason": "消息面平静"},
@@ -66,7 +105,12 @@ STOCK_INTEL_DB = {
         "sentiment_score": 0.10,
         "sentiment_label": "中性",
         "news": [
-            {"title": "招商银行零售业务稳健增长", "source": "上海证券报", "credibility": 0.85, "url": "https://www.cnstock.com/"},
+            {
+                "title": "招商银行零售业务稳健增长",
+                "source": "上海证券报",
+                "credibility": 0.85,
+                "url": "https://www.cnstock.com/",
+            },
         ],
         "announcements": [],
         "impact": {"direction": "中性", "strength": "weak", "reason": "消息面平静"},
@@ -99,6 +143,7 @@ async def market_intelligence_node(state: AgentState) -> AgentState:
     real_news_items = []
     try:
         from ..services.news_service import get_stock_news
+
         news_result = await get_stock_news(symbol)
         if news_result and news_result.get("data"):
             real_news = news_result["data"]
@@ -126,7 +171,11 @@ async def market_intelligence_node(state: AgentState) -> AgentState:
                 for n in real_news_items
             ],
             "announcements": [],
-            "impact": {"direction": "中性", "strength": "weak", "reason": "基于实时新闻数据"},
+            "impact": {
+                "direction": "中性",
+                "strength": "weak",
+                "reason": "基于实时新闻数据",
+            },
             "risk_alerts": [],
             "source": "live",
         }
@@ -138,7 +187,11 @@ async def market_intelligence_node(state: AgentState) -> AgentState:
             "sentiment_label": "中性",
             "news": [],
             "announcements": [],
-            "impact": {"direction": "中性", "strength": "weak", "reason": "暂无相关新闻数据"},
+            "impact": {
+                "direction": "中性",
+                "strength": "weak",
+                "reason": "暂无相关新闻数据",
+            },
             "risk_alerts": [],
         }
 
@@ -156,16 +209,24 @@ async def market_intelligence_node(state: AgentState) -> AgentState:
     # Sentiment
     sentiment_label = intel.get("sentiment_label", "中性")
     sentiment_score = intel.get("sentiment_score", 0)
-    
+
     # News — only show if there's actual news
     if news_list:
-        sentiments = "偏多" if sentiment_score > 0.2 else "偏空" if sentiment_score < -0.2 else "中性"
-        lines.append(f"舆情{sentiments}（{sentiment_score:+.2f}），有{len(news_list)}条相关动态")
+        sentiments = (
+            "偏多"
+            if sentiment_score > 0.2
+            else "偏空"
+            if sentiment_score < -0.2
+            else "中性"
+        )
+        lines.append(
+            f"舆情{sentiments}（{sentiment_score:+.2f}），有{len(news_list)}条相关动态"
+        )
         for n in news_list[:4]:
-            title = (n.get('title', '') or '').strip()
-            url = (n.get('url', '') or '').strip()
-            source = (n.get('source', '') or '').strip()
-            pub_time = (n.get('time', '') or '').strip()
+            title = (n.get("title", "") or "").strip()
+            url = (n.get("url", "") or "").strip()
+            source = (n.get("source", "") or "").strip()
+            pub_time = (n.get("time", "") or "").strip()
             time_part = f" · {pub_time}" if pub_time else ""
             if url:
                 lines.append(f"  · [{title}]({url}) · {source}{time_part}")
@@ -182,7 +243,9 @@ async def market_intelligence_node(state: AgentState) -> AgentState:
     impact = intel.get("impact", {})
     impact_dir = impact.get("direction", "中性")
     if impact_dir != "中性":
-        lines.append(f"影响：{impact_dir}，{impact.get('strength', 'weak')}级（{impact.get('reason', '')}）")
+        lines.append(
+            f"影响：{impact_dir}，{impact.get('strength', 'weak')}级（{impact.get('reason', '')}）"
+        )
 
     # Risk alerts — only meaningful ones
     if risk_alerts:
@@ -199,7 +262,9 @@ async def market_intelligence_node(state: AgentState) -> AgentState:
         # 盘中始终调用 LLM，盘后/非交易时段优先使用缓存
         cached = None
         if not is_trading:
-            cached = await get_agent_memory(user_id, agent_key, symbol, query_hash, query=user_input)
+            cached = await get_agent_memory(
+                user_id, agent_key, symbol, query_hash, query=user_input
+            )
 
         if cached and not is_trading:
             try:
@@ -219,9 +284,12 @@ async def market_intelligence_node(state: AgentState) -> AgentState:
 
             # 保存到 agent_memory
             await save_agent_memory(
-                user_id, agent_key, symbol,
-                query_hash, json_mod.dumps(llm_result, ensure_ascii=False, default=str),
-                query=user_input
+                user_id,
+                agent_key,
+                symbol,
+                query_hash,
+                json_mod.dumps(llm_result, ensure_ascii=False, default=str),
+                query=user_input,
             )
 
         # Add LLM analysis to log
@@ -264,7 +332,9 @@ async def _market_overview_node(state: AgentState) -> AgentState:
     lines.append(
         f"- 指数涨跌：涨 {summary.get('up_count', 0)} / 跌 {summary.get('down_count', 0)} / 平 {summary.get('flat_count', 0)}"
     )
-    lines.append(f"- 市场情绪：{sentiment.get('sentiment', 'unknown')}（评分 {sentiment.get('score', 0):+.2f}）")
+    lines.append(
+        f"- 市场情绪：{sentiment.get('sentiment', 'unknown')}（评分 {sentiment.get('score', 0):+.2f}）"
+    )
 
     if indices:
         lines.append("- 主要指数：")
@@ -278,7 +348,9 @@ async def _market_overview_node(state: AgentState) -> AgentState:
     if leaders:
         lines.append("- 领涨指数：")
         for d in leaders:
-            lines.append(f"   {d.get('name', d.get('symbol', ''))} {d.get('change_pct', 0):+.2f}%")
+            lines.append(
+                f"   {d.get('name', d.get('symbol', ''))} {d.get('change_pct', 0):+.2f}%"
+            )
     else:
         lines.append("- 领涨指数：无（当前无上涨指数）")
 
@@ -286,21 +358,24 @@ async def _market_overview_node(state: AgentState) -> AgentState:
     if laggards:
         lines.append("- 领跌指数：")
         for d in laggards:
-            lines.append(f"   {d.get('name', d.get('symbol', ''))} {d.get('change_pct', 0):+.2f}%")
+            lines.append(
+                f"   {d.get('name', d.get('symbol', ''))} {d.get('change_pct', 0):+.2f}%"
+            )
     else:
         lines.append("- 领跌指数：无（当前无下跌指数）")
 
     # 附加市场要闻（带可点击链接）
     try:
         from ..services.news_service import get_market_news
+
         mnews = await get_market_news()
         mnews_items = [n for n in mnews.get("data", []) if n.get("url")]
         if mnews_items:
             lines.append("- 市场要闻：")
             for n in mnews_items[:4]:
-                title = (n.get('title', '') or '').strip()
-                url = (n.get('url', '') or '').strip()
-                source = (n.get('source', '') or '').strip()
+                title = (n.get("title", "") or "").strip()
+                url = (n.get("url", "") or "").strip()
+                source = (n.get("source", "") or "").strip()
                 lines.append(f"   [{title}]({url}) · {source}")
     except Exception as e:
         logger.debug(f"市场新闻获取失败: {e}")
@@ -315,7 +390,9 @@ async def _market_overview_node(state: AgentState) -> AgentState:
 
         cached = None
         if not is_trading:
-            cached = await get_agent_memory(user_id, agent_key, "market_overview", query_hash, query=user_input)
+            cached = await get_agent_memory(
+                user_id, agent_key, "market_overview", query_hash, query=user_input
+            )
 
         if cached and not is_trading:
             try:
@@ -334,9 +411,12 @@ async def _market_overview_node(state: AgentState) -> AgentState:
             state["intelligence_assessment"] = llm_result
 
             await save_agent_memory(
-                user_id, agent_key, "market_overview",
-                query_hash, json_mod.dumps(llm_result, ensure_ascii=False, default=str),
-                query=user_input
+                user_id,
+                agent_key,
+                "market_overview",
+                query_hash,
+                json_mod.dumps(llm_result, ensure_ascii=False, default=str),
+                query=user_input,
             )
 
         summary_text = llm_result.get("impact_summary", "")
@@ -362,11 +442,17 @@ def _build_market_overview_summary(overview: dict) -> str:
     """为 LLM 构造市场概览文本"""
     lines = ["Market overview (A-Share indices):"]
     sentiment = overview.get("sentiment", {})
-    lines.append(f"Sentiment: {sentiment.get('sentiment', 'unknown')} (score {sentiment.get('score', 0)})")
+    lines.append(
+        f"Sentiment: {sentiment.get('sentiment', 'unknown')} (score {sentiment.get('score', 0)})"
+    )
     summary = overview.get("summary", {})
-    lines.append(f"Index breadth: up={summary.get('up_count',0)}, down={summary.get('down_count',0)}, flat={summary.get('flat_count',0)}")
+    lines.append(
+        f"Index breadth: up={summary.get('up_count', 0)}, down={summary.get('down_count', 0)}, flat={summary.get('flat_count', 0)}"
+    )
     for sym, d in overview.get("indices", {}).items():
-        lines.append(f"{sym}: price={d.get('price')}, change_pct={d.get('change_pct')}%")
+        lines.append(
+            f"{sym}: price={d.get('price')}, change_pct={d.get('change_pct')}%"
+        )
     return "\n".join(lines)
 
 
@@ -460,7 +546,9 @@ async def _intel_llm_legacy(state: AgentState, intel: dict, symbol: str) -> dict
     if strategy:
         ctx_lines.append(f"Orchestrator reasoning: {strategy}")
     if quant:
-        ctx_lines.append(f"Quant researcher found: trend={quant.get('trend_assessment','?')}, strength={quant.get('strength_rating','?')}/10, summary={quant.get('summary','')}")
+        ctx_lines.append(
+            f"Quant researcher found: trend={quant.get('trend_assessment', '?')}, strength={quant.get('strength_rating', '?')}/10, summary={quant.get('summary', '')}"
+        )
     ctx_prefix = "\n".join(ctx_lines) + "\n\n"
     messages = [
         {"role": "system", "content": MARKET_INTELLIGENCE_SYSTEM},

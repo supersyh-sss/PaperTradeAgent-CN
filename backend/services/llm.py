@@ -5,6 +5,7 @@ Harness 集成：
   - ResilienceManager: 熔断器保护
   - CallInterceptor: JSON 确定性反序列化
 """
+
 import json
 import logging
 import time
@@ -47,6 +48,7 @@ def _get_metrics():
     global _metrics
     if _metrics is None:
         from ..harness.metrics import MetricsCollector
+
         _metrics = MetricsCollector()
     return _metrics
 
@@ -55,6 +57,7 @@ def _get_resilience():
     global _resilience
     if _resilience is None:
         from ..harness.resilience import ResilienceManager
+
         _resilience = ResilienceManager()
     return _resilience
 
@@ -62,6 +65,7 @@ def _get_resilience():
 def _record_token_usage(tokens: int) -> None:
     """记录 LLM 调用与 token 消耗，并按当前 Agent 归集（L5 逐 Agent 观测）"""
     from ..harness.metrics import MetricType, current_agent
+
     _get_metrics().record(MetricType.LLM_CALL_COUNT, 1)
     _get_metrics().record(MetricType.TOKEN_USAGE, tokens)
     agent = current_agent.get()
@@ -99,40 +103,49 @@ class DeepSeekClient:
         if response_format:
             body["response_format"] = response_format
 
-        timeout = HTTP_TIMEOUT_LLM_CHAT if self.model == DEEPSEEK_FLASH_MODEL else HTTP_TIMEOUT_LLM_STREAM
+        timeout = (
+            HTTP_TIMEOUT_LLM_CHAT
+            if self.model == DEEPSEEK_FLASH_MODEL
+            else HTTP_TIMEOUT_LLM_STREAM
+        )
         start = time.time()
-        
+
         try:
             r_mgr = _get_resilience()
             from ..harness.metrics import MetricType
-            
+
             async def _call():
                 client = _get_http_client()
                 resp = await client.post(
                     f"{self.base_url}/chat/completions",
-                    headers=headers, json=body, timeout=timeout,
+                    headers=headers,
+                    json=body,
+                    timeout=timeout,
                 )
                 resp.raise_for_status()
                 return resp.json()
 
             data = await r_mgr.execute(
-                _call, breaker_name=f"deepseek_{self.model}",
+                _call,
+                breaker_name=f"deepseek_{self.model}",
             )
-            
+
             content = data["choices"][0]["message"]["content"]
             usage = data.get("usage", {})
             tokens = usage.get("total_tokens", len(content) // 2)
-            
+
             # Record metrics (LLM calls + tokens, per-agent attribution)
             _record_token_usage(tokens)
-            
+
             latency_ms = (time.time() - start) * 1000
             logger.debug(f"DeepSeek [{self.model}]: {tokens}t, {latency_ms:.0f}ms")
             return content
-            
+
         except httpx.HTTPStatusError as e:
             _get_metrics().record(MetricType.LLM_CALL_ERROR, 1)
-            logger.error(f"DeepSeek API 错误 ({self.model}): {e.response.status_code} - {e.response.text[:500]}")
+            logger.error(
+                f"DeepSeek API 错误 ({self.model}): {e.response.status_code} - {e.response.text[:500]}"
+            )
             raise
         except Exception as e:
             _get_metrics().record(MetricType.LLM_CALL_ERROR, 1)
@@ -148,25 +161,25 @@ class DeepSeekClient:
         """调用 DeepSeek 并强制返回 JSON（含增强降级解析）"""
         raw = await self.chat(messages, temperature, max_tokens)
         raw = raw.strip()
-        
+
         # 使用 Harness FallbackChain 进行多层解析
         from ..harness.call_interceptor import FallbackChain
-        
+
         # Level 1: 标准 Markdown 去围栏
         cleaned = FallbackChain.strip_markdown_fences(raw)
-        
+
         # Level 2: 标准 JSON
         try:
             return json.loads(cleaned)
         except json.JSONDecodeError:
             pass
-        
+
         # Level 3: 正则提取
         result, method = FallbackChain.try_regex_extract(cleaned)
         if result:
             logger.info(f"DeepSeek JSON 降级解析 [{self.model}]: {method}")
             return result
-        
+
         # Level 4: 最终降级
         logger.warning(f"DeepSeek 返回非 JSON ({self.model}): {raw[:200]}")
         return {"raw": raw, "parse_error": True}
@@ -195,7 +208,11 @@ class DeepSeekClient:
             "stream": False,
             "tools": tools,
         }
-        timeout = HTTP_TIMEOUT_LLM_CHAT if self.model == DEEPSEEK_FLASH_MODEL else HTTP_TIMEOUT_LLM_STREAM
+        timeout = (
+            HTTP_TIMEOUT_LLM_CHAT
+            if self.model == DEEPSEEK_FLASH_MODEL
+            else HTTP_TIMEOUT_LLM_STREAM
+        )
         start = time.time()
 
         try:
@@ -206,7 +223,9 @@ class DeepSeekClient:
                 client = _get_http_client()
                 resp = await client.post(
                     f"{self.base_url}/chat/completions",
-                    headers=headers, json=body, timeout=timeout,
+                    headers=headers,
+                    json=body,
+                    timeout=timeout,
                 )
                 resp.raise_for_status()
                 return resp.json()
@@ -229,7 +248,9 @@ class DeepSeekClient:
 
         except httpx.HTTPStatusError as e:
             _get_metrics().record(MetricType.LLM_CALL_ERROR, 1)
-            logger.error(f"DeepSeek tools 错误 ({self.model}): {e.response.status_code} - {e.response.text[:500]}")
+            logger.error(
+                f"DeepSeek tools 错误 ({self.model}): {e.response.status_code} - {e.response.text[:500]}"
+            )
             raise
         except Exception as e:
             _get_metrics().record(MetricType.LLM_CALL_ERROR, 1)
@@ -256,13 +277,19 @@ class DeepSeekClient:
         }
 
         from ..harness.metrics import MetricType
+
         start = time.time()
         token_count = 0
-        
+
         try:
             client = _get_http_client()
-            async with client.stream("POST", f"{self.base_url}/chat/completions",
-                    headers=headers, json=body, timeout=HTTP_TIMEOUT_LLM_STREAM) as resp:
+            async with client.stream(
+                "POST",
+                f"{self.base_url}/chat/completions",
+                headers=headers,
+                json=body,
+                timeout=HTTP_TIMEOUT_LLM_STREAM,
+            ) as resp:
                 resp.raise_for_status()
                 async for line in resp.aiter_lines():
                     if line.startswith("data: "):
@@ -279,10 +306,12 @@ class DeepSeekClient:
                         except Exception:
                             logger.debug("SSE chunk解析跳过")
                             continue
-            
+
             _record_token_usage(token_count)
-            logger.debug(f"DeepSeek stream [{self.model}]: ~{token_count}t, {(time.time()-start)*1000:.0f}ms")
-            
+            logger.debug(
+                f"DeepSeek stream [{self.model}]: ~{token_count}t, {(time.time() - start) * 1000:.0f}ms"
+            )
+
         except Exception as e:
             _get_metrics().record(MetricType.LLM_CALL_ERROR, 1)
             logger.error(f"DeepSeek stream 异常 ({self.model}): {e}")
@@ -302,6 +331,7 @@ deepseek = flash_client
 def get_thinking_mode() -> str:
     """读取当前思考模式（运行时动态读取，支持设置热更新）。"""
     import os
+
     mode = (os.getenv("THINKING_MODE") or "auto").strip().lower()
     return mode if mode in ("auto", "fast", "deep") else "auto"
 

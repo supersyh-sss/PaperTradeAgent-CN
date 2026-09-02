@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { api, type ObservabilityOverview, type ScheduledTask, type RiskQuestion } from "../api/client";
-import { XIcon, CheckCircleIcon, AlertCircleIcon, UploadIcon } from "./Icon";
+import {
+  XIcon, CheckCircleIcon, AlertCircleIcon, UploadIcon,
+  UserRoundIcon, KeyIcon, SlidersIcon, DatabaseIcon, TimerIcon, CalendarIcon, ActivityIcon,
+} from "./Icon";
 
 interface SettingsDialogProps {
   open: boolean;
@@ -9,13 +12,13 @@ interface SettingsDialogProps {
 }
 
 const TABS = [
-  { key: "profile", label: "个人资料" },
-  { key: "model", label: "模型配置" },
-  { key: "ratelimit", label: "行情限流" },
-  { key: "data", label: "数据与交易" },
-  { key: "timeout", label: "超时与记忆" },
-  { key: "scheduler", label: "定时任务" },
-  { key: "metrics", label: "运行统计" },
+  { key: "profile", label: "个人资料", icon: UserRoundIcon },
+  { key: "model", label: "模型配置", icon: KeyIcon },
+  { key: "ratelimit", label: "行情限流", icon: SlidersIcon },
+  { key: "data", label: "数据与交易", icon: DatabaseIcon },
+  { key: "timeout", label: "超时与记忆", icon: TimerIcon },
+  { key: "scheduler", label: "定时任务", icon: CalendarIcon },
+  { key: "metrics", label: "运行统计", icon: ActivityIcon },
 ] as const;
 
 const AVATAR_OPTIONS = [
@@ -120,8 +123,12 @@ function MetricsView({
 }) {
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <div className="w-7 h-7 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
+      <div className="space-y-6" role="status" aria-label="运行统计加载中">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          {Array.from({ length: 6 }).map((_, i) => <div key={i} className="skeleton h-[74px] rounded-xl" />)}
+        </div>
+        <div className="skeleton h-36 rounded-xl" />
+        <div className="skeleton h-48 rounded-xl" />
       </div>
     );
   }
@@ -389,8 +396,8 @@ function SchedulerView() {
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="w-6 h-6 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
+        <div className="space-y-2" role="status" aria-label="定时任务加载中">
+          {Array.from({ length: 3 }).map((_, i) => <div key={i} className="skeleton h-14 rounded-xl" />)}
         </div>
       ) : tasks.length === 0 ? (
         <p className="text-sm text-text-muted py-8 text-center">暂无定时任务</p>
@@ -729,11 +736,14 @@ export default function SettingsDialog({ open, onClose, onProfileChanged }: Sett
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm backdrop-enter"
       onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="系统设置"
     >
       <div
-        className="glass-strong rounded-2xl border border-border shadow-2xl w-full max-w-5xl mx-6"
+        className="glass-strong rounded-2xl border border-border shadow-2xl w-full max-w-5xl mx-6 dialog-enter"
         style={{ boxShadow: "0 24px 60px rgba(0,0,0,0.45)" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -751,23 +761,22 @@ export default function SettingsDialog({ open, onClose, onProfileChanged }: Sett
         </div>
 
 {/* 标签页 */}
-        <div className="flex border-b border-border px-8 gap-4">
-          {TABS.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`relative px-5 py-3.5 text-[14px] font-medium transition-colors -mb-px ${
-                activeTab === tab.key
-                  ? "text-accent"
-                  : "text-text-muted hover:text-text-secondary"
-              }`}
-            >
-              {tab.label}
-              {activeTab === tab.key && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent rounded-full" />
-              )}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-1 border-b border-border px-8 py-2.5">
+          {TABS.map((tab) => {
+            const Icon = tab.icon;
+            const active = activeTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                aria-pressed={active}
+                className={`tab-item ${active ? "tab-item-active" : ""}`}
+              >
+                <Icon size={14} />
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
 
 {/* 设置内容 */}
