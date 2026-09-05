@@ -205,17 +205,31 @@ async def get_account_tool(user_id: str) -> dict:
         user_id: 用户 ID
 
     Returns:
-        账户信息：balance、total_assets、total_pnl、frozen_amount
+        账户信息：balance、available_balance（扣除在途买单锁定后的可用资金）、
+        locked_balance、total_assets、frozen_amount
     """
     account = await get_account(user_id)
     if not account:
         return {"error": "账户不存在"}
 
+    balance = float(account.get("balance", 0) or 0)
+    total_assets = float(account.get("total_assets", 0) or 0)
+    frozen = float(account.get("frozen_amount", 0) or 0)
+
+    # 可用口径与交易/持仓页一致：余额扣除在途订单锁定的资金
+    try:
+        from ..services.order_engine import get_locked_balance
+
+        locked = float(get_locked_balance(user_id) or 0)
+    except Exception:
+        locked = 0.0
+
     return {
-        "balance": account.get("available_balance", 0),
-        "total_assets": account.get("total_assets", 0),
-        "total_pnl": account.get("total_pnl", 0),
-        "frozen_amount": account.get("frozen_amount", 0),
+        "balance": round(balance, 2),
+        "available_balance": round(max(balance - locked, 0), 2),
+        "locked_balance": round(locked, 2),
+        "frozen_amount": round(frozen, 2),
+        "total_assets": round(total_assets, 2),
     }
 
 

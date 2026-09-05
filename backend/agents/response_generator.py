@@ -78,19 +78,23 @@ def _build_context(state: AgentState) -> str:
         parts.append("\n技术分析数据:")
         parts.append(f"- 趋势: {tech.get('trend')}")
         parts.append(f"- 最新价: {tech.get('latest_price')}")
+        ma = tech.get("ma") or {}
+        bb = tech.get("bollinger") or {}
         parts.append(
-            f"- 均线: MA5={tech['ma'].get('ma5')}, MA10={tech['ma'].get('ma10')}, MA20={tech['ma'].get('ma20')}, MA60={tech['ma'].get('ma60')}"
+            f"- 均线: MA5={ma.get('ma5')}, MA10={ma.get('ma10')}, MA20={ma.get('ma20')}, MA60={ma.get('ma60')}"
         )
         parts.append(f"- RSI: {tech.get('rsi')}")
         parts.append(f"- MACD信号: {tech.get('macd_signal')}")
         parts.append(
-            f"- 布林带: 上轨{tech['bollinger'].get('upper')}, 中轨{tech['bollinger'].get('middle')}, 下轨{tech['bollinger'].get('lower')}"
+            f"- 布林带: 上轨{bb.get('upper')}, 中轨{bb.get('middle')}, 下轨{bb.get('lower')}"
         )
         parts.append(f"- 波动率: {tech.get('volatility')}%")
         signals = tech.get("signals", [])
         if signals:
             for s in signals:
-                parts.append(f"  * [{s['type']}] {s['signal']} (强度:{s['strength']})")
+                parts.append(
+                    f"  * [{s.get('type')}] {s.get('signal')} (强度:{s.get('strength')})"
+                )
         parts.append(f"- 支撑位: {tech.get('support')}")
         parts.append(f"- 阻力位: {tech.get('resistance')}")
 
@@ -140,14 +144,14 @@ def _build_context(state: AgentState) -> str:
             )
             sentiment = intel.get("sentiment", {})
             parts.append(
-                f"- 市场情绪: {sentiment.get('sentiment', 'unknown')} (评分 {sentiment.get('score', 0):+.2f})"
+                f"- 市场情绪: {sentiment.get('sentiment', 'unknown')} (评分 {_as_float(sentiment.get('score')):+.2f})"
             )
             indices = intel.get("indices", {})
             if indices:
                 parts.append("- 主要指数:")
                 for sym, d in indices.items():
                     parts.append(
-                        f"  * {d.get('name', sym)}: {d.get('price')} ({d.get('change_pct', 0):+.2f}%)"
+                        f"  * {d.get('name', sym)}: {d.get('price')} ({_as_float(d.get('change_pct')):+.2f}%)"
                     )
         else:
             parts.append("\n市场动态情报:")
@@ -308,13 +312,24 @@ _LOW_CONFIDENCE_NOTE = (
 )
 
 
+def _as_float(value, default: float = 0.0) -> float:
+    """把 LLM/数据源返回的值安全转成 float（可能是字符串或 None），失败用默认值。"""
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def _low_confidence_note(state: AgentState) -> str:
     """D3：基于已有量化/情报信号判定低置信度，返回主动求助提示（无则返回空串）。"""
     quant = state.get("quant_assessment") or {}
     intel = state.get("intelligence_assessment") or {}
 
+    strength = _as_float(quant.get("strength_rating"), default=-1.0)
     quant_low = (
-        (quant.get("strength_rating") is not None and quant.get("strength_rating") <= 3)
+        (0 <= strength <= 3)
         or quant.get("volatility_assessment") in ("high", "extreme")
         or bool(quant.get("risk_flags"))
     )

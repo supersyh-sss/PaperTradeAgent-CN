@@ -74,9 +74,12 @@ async def _get_multi_factor_price(
 
     # 2. 技术面因子（Bollinger/MA）
     if tech:
-        bb = tech.get("bollinger", {})
-        ma20 = tech.get("ma", {}).get("ma20", 0)
-        # support/resistance 是列表 [近, 中, 远] 或者标量，统一取最近值
+        bb = tech.get("bollinger", {}) or {}
+        ma = tech.get("ma", {}) or {}
+        ma20 = ma.get("ma20", 0)
+        # support/resistance 来自技术分析：support 升序（[最深…最浅]）、resistance 降序
+        # （[最高…最近]），均为近 20 日极值集合；买卖定价对称取「与现价更贴近」的一端，
+        # 即列表末位（最大支撑 = 最近支撑；最小阻力 = 最近阻力）。
         _raw_resistance = tech.get("resistance", 0)
         _raw_support = tech.get("support", 0)
         resistance = (
@@ -85,7 +88,7 @@ async def _get_multi_factor_price(
             else (_raw_resistance or 0)
         )
         support = (
-            _raw_support[0]
+            _raw_support[-1]
             if isinstance(_raw_support, list) and _raw_support
             else (_raw_support or 0)
         )
@@ -109,7 +112,10 @@ async def _get_multi_factor_price(
 
     # 3. 消息面/情绪因子
     if intel:
-        sentiment = intel.get("sentiment_score", 0)  # -1 to 1
+        try:
+            sentiment = float(intel.get("sentiment_score", 0) or 0)  # -1 to 1
+        except (TypeError, ValueError):
+            sentiment = 0.0
         if abs(sentiment) > 0.1:
             sent_adj = sentiment * 0.02
             factors["sentiment_adj"] = sent_adj * base_price
@@ -392,6 +398,7 @@ async def trade_executor_node(state: AgentState) -> AgentState:
         locked_cash = 0.0
     available_cash = max(round(balance - locked_cash, 2), 0)
 
+    user_specified_qty = safe_int(state.get("trade_quantity")) or None
     if trade_side == "SELL":
         try:
             pos = await db.get_position(user_id, symbol)
@@ -409,14 +416,95 @@ async def trade_executor_node(state: AgentState) -> AgentState:
         except Exception:
             locked_share_qty = 0
         max_sellable = max(sellable - locked_share_qty, 0)
-        suggested_qty = min(trade_quantity or max_sellable, max_sellable)
-        suggested_qty = (suggested_qty // 100) * 100
+        if max_sellable <= 0:
+            # 无可用持仓：如实标记为不可交易，而不是把建议量抬到 100 误导用户
+            suggested_qty = 0
+            trade_plan["warnings"].append(
+                {
+                    "source": "持仓",
+                    "level": "HIGH",
+                    "message": "当前无可卖持仓"
+                    + (
+                        "（持仓均处于 T+1 冻结或在途卖单锁定），无法卖出"
+                        if holding > 0
+                        else "，无法卖出"
+                    ),
+                }
+            )
+        else:
+            base_sell_qty = user_specified_qty or 100  # 用户未指定时默认 1 手
+            suggested_qty = min(base_sell_qty, max_sellable)
+            suggested_qty = (suggested_qty // 100) * 100
+            if suggested_qty == 0:
+                # 可卖不足一手（零股）：下单引擎要求 100 股整数倍，如实提示而非报 0 股
+                trade_plan["warnings"].append(
+                    {
+                        "source": "持仓",
+                        "level": "HIGH",
+                        "message": f"可卖持仓不足 1 手（当前可卖 {max_sellable} 股），无法按整手卖出。",
+                    }
+                )
+            elif user_specified_qty and suggested_qty < user_specified_qty:
+                trade_plan["warnings"].append(
+                    {
+                        "source": "数量",
+                        "level": "WARNING",
+                        "message": f"卖出需为 100 股整数倍，已向下取整为 {suggested_qty} 股（您要求 {user_specified_qty} 股）。",
+                    }
+                )
     else:
-        suggested_qty = suggest_lot_size(available_cash, estimated_price, max_pct=0.5)
-    trade_plan["suggested_quantity"] = max(suggested_qty, 100)
-    trade_plan["quantity"] = trade_plan[
-        "suggested_quantity"
-    ]  # 同步 quantity 与 suggested_quantity
+        if user_specified_qty and user_specified_qty >= 100:
+            # 尊重用户明确指定的数量：向下取整到整手
+            qty_by_user = (user_specified_qty // 100) * 100
+            if qty_by_user < user_specified_qty:
+                trade_plan["warnings"].append(
+                    {
+                        "source": "数量",
+                        "level": "WARNING",
+                        "message": f"A股买入需为 100 股整数倍，已向下取整为 {qty_by_user} 股（您要求 {user_specified_qty} 股）。",
+                    }
+                )
+            # 可负担上限（预留约 0.3% 手续费空间）
+            per_share_cost = estimated_price * 1.003 if estimated_price > 0 else 0
+            affordable_lots = (
+                int(available_cash / per_share_cost / 100) * 100
+                if per_share_cost > 0
+                else 0
+            )
+            if affordable_lots < 100:
+                suggested_qty = 0
+                trade_plan["warnings"].append(
+                    {
+                        "source": "资金",
+                        "level": "HIGH",
+                        "message": f"可用资金 {available_cash:,.2f} 不足以买入 1 手（约需 {per_share_cost * 100:,.2f} 元）。",
+                    }
+                )
+            else:
+                suggested_qty = min(qty_by_user, affordable_lots)
+                if suggested_qty < qty_by_user:
+                    trade_plan["warnings"].append(
+                        {
+                            "source": "资金",
+                            "level": "WARNING",
+                            "message": f"可用资金仅够买入 {suggested_qty} 股，已按可负担上限调整（您要求 {qty_by_user} 股）。",
+                        }
+                    )
+        else:
+            if user_specified_qty and 0 < user_specified_qty < 100:
+                trade_plan["warnings"].append(
+                    {
+                        "source": "数量",
+                        "level": "WARNING",
+                        "message": f"A股买入需为 100 股整数倍（您要求 {user_specified_qty} 股），已按可用资金给出建议。",
+                    }
+                )
+            # 用户未指定数量：按可用资金 50% 仓位给出建议
+            suggested_qty = suggest_lot_size(
+                available_cash, estimated_price, max_pct=0.5
+            )
+    trade_plan["suggested_quantity"] = suggested_qty
+    trade_plan["quantity"] = suggested_qty  # 同步 quantity 与 suggested_quantity
     trade_plan["user_balance"] = available_cash
     trade_plan["locked_balance"] = round(locked_cash, 2)
 

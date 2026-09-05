@@ -204,13 +204,24 @@ class DataFeed:
                 if snap.is_trading:
                     all_prices = get_all_live_prices()
 
+                    # 缓存键形如 sh600519 / sz000001：先建一次 纯代码→行情 映射，
+                    # 将持仓/自选逐 symbol 匹配从 O(n×m) 嵌套循环降为 O(n+m) 查找
+                    code_index: dict[str, dict] = {}
+                    for _cache_key, price_data in all_prices.items():
+                        _code = (
+                            _cache_key[-6:]
+                            if len(_cache_key) >= 6 and _cache_key[-6:].isdigit()
+                            else ""
+                        )
+                        if _code:
+                            code_index.setdefault(_code, price_data)
+
                     # 筛选取需要的 symbol
                     if symbols:
                         for sym in symbols:
-                            for cache_key, price_data in all_prices.items():
-                                if sym in cache_key:
-                                    snap.live_prices[sym] = price_data
-                                    break
+                            _pd = code_index.get(sym)
+                            if _pd is not None:
+                                snap.live_prices[sym] = _pd
                     else:
                         # 默认：取所有持仓 + 自选股的价格
                         interested = set()
@@ -219,10 +230,9 @@ class DataFeed:
                         for w in snap.watchlist:
                             interested.add(w.get("symbol", ""))
                         for sym in interested:
-                            for cache_key, price_data in all_prices.items():
-                                if sym in cache_key:
-                                    snap.live_prices[sym] = price_data
-                                    break
+                            _pd = code_index.get(sym)
+                            if _pd is not None:
+                                snap.live_prices[sym] = _pd
 
                 snap.data_sources["prices"] = (
                     "live_prices_cache" if snap.is_trading else "cached_indices_only"

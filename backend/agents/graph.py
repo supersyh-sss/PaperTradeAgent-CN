@@ -88,8 +88,16 @@ async def agent_chat_node(state: AgentState) -> AgentState:
         try:
             account = await get_account(user_id)
             if account:
+                try:
+                    from ..services.order_engine import get_locked_balance
+
+                    locked_cash = float(get_locked_balance(user_id) or 0)
+                except Exception:
+                    locked_cash = 0.0
+                balance = float(account.get("balance", 0) or 0)
                 context_parts.append(
-                    f"账户: 可用{account.get('available_balance', 0):.2f}, 总资产{account.get('total_assets', 0):.2f}"
+                    f"账户: 可用{max(balance - locked_cash, 0):.2f}, "
+                    f"总资产{float(account.get('total_assets', 0) or 0):.2f}"
                 )
         except Exception:
             pass

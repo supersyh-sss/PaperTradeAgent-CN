@@ -14,6 +14,10 @@ PARALLEL_AGENTS = frozenset(
     {"quant_researcher", "market_intelligence", "portfolio_monitor"}
 )
 
+# fire-and-forget 后台任务强引用集合：事件循环只持有弱引用，若不保留引用，
+# 任务可能在执行中被 GC 掉（“Task was destroyed but it is pending”），导致链路追踪丢失。
+_bg_tasks: set[asyncio.Task] = set()
+
 
 def _schedule_trace(
     state: AgentState,
@@ -27,7 +31,7 @@ def _schedule_trace(
     try:
         from ..services.db import record_agent_trace
 
-        asyncio.create_task(
+        task = asyncio.create_task(
             record_agent_trace(
                 trace_id=state.get("trace_id", ""),
                 agent=agent_name,
@@ -40,6 +44,8 @@ def _schedule_trace(
                 token_used=token_used,
             )
         )
+        _bg_tasks.add(task)
+        task.add_done_callback(_bg_tasks.discard)
     except Exception:
         pass
 

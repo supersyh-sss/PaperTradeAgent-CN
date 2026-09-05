@@ -2,7 +2,6 @@
 
 import logging
 import re
-import time as _time
 from datetime import datetime
 
 from .state import AgentState
@@ -315,8 +314,12 @@ async def chief_strategist_node(state: AgentState) -> AgentState:
     except Exception as e:
         # Fallback: try once more with simpler prompt (no watchlist, no history)
         try:
+            from .state import BJT
+
+            _now_bj = datetime.now(BJT)
             simple_prompt = (
-                f"User: {user_input}\nTime: {_time.strftime('%Y-%m-%d %H:%M')} Beijing"
+                f"User: {user_input}\nTime: {_now_bj.year}-{_now_bj.month:02d}-{_now_bj.day:02d} "
+                f"{_now_bj.hour:02d}:{_now_bj.minute:02d} Beijing"
             )
             messages_simple = [
                 {"role": "system", "content": CHIEF_STRATEGIST_SYSTEM},

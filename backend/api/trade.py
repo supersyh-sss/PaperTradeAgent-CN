@@ -122,7 +122,8 @@ async def create_trade(
         price = current_price
         order_type = "MARKET"
     else:
-        price = round(float(price), 3)
+        # A股最小价格档位 0.01 元：入场即收敛，避免 2 位(涨跌停/费用)与 3 位(存储)口径漂移
+        price = round(float(price), 2)
         order_type = "LIMIT"
 
     from ..services.trade_rules import get_price_limit
@@ -155,7 +156,7 @@ async def create_trade(
         # 余额检查（市价单预留 2% 价格笼子空间）
         lock_price = price
         if side == "BUY" and order_type == "MARKET":
-            lock_price = round(price * 1.02, 3)
+            lock_price = round(price * 1.02, 2)
 
         # 预估手续费：锁定金额 = 成交金额 + 预估手续费，防止多单并发结算时费用超支
         estimated_fee = 0.0
@@ -252,31 +253,13 @@ async def execute_trade(req: TradeRequest, user_id: str = Depends(get_current_us
 
 
 @router.post("/cancel")
+@router.post("/cancel-order")
 async def cancel_trade(req: CancelRequest, user_id: str = Depends(get_current_user)):
-    """撤单（带用户归属校验）"""
+    """撤单（带用户归属校验；兼容 /api/trade/cancel 与 /cancel-order 两条历史路径）"""
     result = cancel_order(req.order_id, user_id=user_id)
     if not result["success"]:
         raise HTTPException(400, result["message"])
     # 同步更新DB
-    try:
-        await db.update_trade_status_by_order_id(
-            req.order_id,
-            "CANCELLED",
-            cancel_reason=result["order"].get("cancel_reason", "用户主动撤单"),
-        )
-    except Exception:
-        pass
-    return {"success": True, "message": "订单已撤销", "order": result["order"]}
-
-
-@router.post("/cancel-order")
-async def cancel_order_endpoint(
-    req: CancelRequest, user_id: str = Depends(get_current_user)
-):
-    """撤单（POST /api/trade/cancel-order）- 带用户归属校验"""
-    result = cancel_order(req.order_id, user_id=user_id)
-    if not result["success"]:
-        raise HTTPException(400, result["message"])
     try:
         await db.update_trade_status_by_order_id(
             req.order_id,

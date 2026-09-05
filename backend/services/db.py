@@ -115,6 +115,32 @@ async def update_account_balance(user_id: str, balance: float, total_assets: flo
         await db.close()
 
 
+async def update_total_assets(
+    user_id: str, total_assets: float, expect_balance: float | None = None
+) -> int:
+    """仅刷新 accounts.total_assets，不改写 balance。
+
+    expect_balance 作为乐观锁：仅当余额与读取时一致（即期间没有并发成交结算改动余额）
+    才落盘总资产，返回受影响行数（0 = 余额已被并发改动，调用方应跳过本次快照）。
+    """
+    db = await get_db()
+    try:
+        if expect_balance is None:
+            cursor = await db.execute(
+                "UPDATE accounts SET total_assets = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?",
+                (total_assets, user_id),
+            )
+        else:
+            cursor = await db.execute(
+                "UPDATE accounts SET total_assets = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND balance = ?",
+                (total_assets, user_id, expect_balance),
+            )
+        await db.commit()
+        return cursor.rowcount or 0
+    finally:
+        await db.close()
+
+
 # ---- 自选股操作 ----
 
 
@@ -245,62 +271,31 @@ async def upsert_position(
         await db.close()
 
 
-async def delete_position(user_id: str, symbol: str):
-    db = await get_db()
-    try:
-        await db.execute(
-            "DELETE FROM positions WHERE user_id = ? AND symbol = ?", (user_id, symbol)
-        )
-        await db.commit()
-    finally:
-        await db.close()
+async def batch_update_position_prices(user_id: str, updates: list[dict]) -> None:
+    """单连接批量刷新多只持仓的最新价/市值/浮盈亏（替代逐持仓 open/close 连接）。
 
-
-async def update_position_prices(user_id: str, symbol: str, latest_price: float):
-    """更新持仓的最新价格和市值"""
-    pos = await get_position(user_id, symbol)
-    if not pos or pos["quantity"] <= 0:
+    updates: [{"symbol", "latest_price", "market_value", "unrealized_pnl", "unrealized_pnl_pct"}, ...]
+    """
+    if not updates:
         return
-    market_value = round(pos["quantity"] * latest_price, 2)
-    unrealized_pnl = round(market_value - pos["total_cost"], 2)
-    unrealized_pnl_pct = (
-        round(unrealized_pnl / pos["total_cost"] * 100, 2)
-        if pos["total_cost"] > 0
-        else 0
-    )
     db = await get_db()
     try:
-        await db.execute(
+        await db.executemany(
             """UPDATE positions SET latest_price=?, market_value=?, unrealized_pnl=?,
                unrealized_pnl_pct=?, updated_at=CURRENT_TIMESTAMP
                WHERE user_id=? AND symbol=?""",
-            (
-                latest_price,
-                market_value,
-                unrealized_pnl,
-                unrealized_pnl_pct,
-                user_id,
-                symbol,
-            ),
+            [
+                (
+                    u["latest_price"],
+                    u["market_value"],
+                    u["unrealized_pnl"],
+                    u["unrealized_pnl_pct"],
+                    user_id,
+                    u["symbol"],
+                )
+                for u in updates
+            ],
         )
-        await db.commit()
-    finally:
-        await db.close()
-
-
-async def reset_t1_quantities(user_id: str | None = None):
-    """每个交易日开盘时将全部持仓的 t1_quantity 清零（前一日买入已可卖）"""
-    db = await get_db()
-    try:
-        if user_id:
-            await db.execute(
-                "UPDATE positions SET t1_quantity = 0, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?",
-                (user_id,),
-            )
-        else:
-            await db.execute(
-                "UPDATE positions SET t1_quantity = 0, updated_at = CURRENT_TIMESTAMP WHERE t1_quantity > 0"
-            )
         await db.commit()
     finally:
         await db.close()
@@ -389,38 +384,6 @@ async def update_trade_status_by_order_id(order_id: str, status: str, **kwargs):
         await db.execute(
             f"UPDATE trades SET {', '.join(fields)} WHERE order_id = ?", params
         )
-        await db.commit()
-    finally:
-        await db.close()
-
-
-async def update_trade_realized_pnl(order_id: str, realized_pnl: float):
-    """回填卖出单的已实现收益（一次性数据迁移用）"""
-    db = await get_db()
-    try:
-        await db.execute(
-            "UPDATE trades SET realized_pnl = ?, updated_at = CURRENT_TIMESTAMP WHERE order_id = ?",
-            (realized_pnl, str(order_id)),
-        )
-        await db.commit()
-    finally:
-        await db.close()
-
-
-async def update_trade_status(trade_id, status: str):
-    """通过 id 或 order_id 更新交易状态"""
-    db = await get_db()
-    try:
-        if isinstance(trade_id, int):
-            await db.execute(
-                "UPDATE trades SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                (status, trade_id),
-            )
-        else:
-            await db.execute(
-                "UPDATE trades SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE order_id = ?",
-                (status, str(trade_id)),
-            )
         await db.commit()
     finally:
         await db.close()
@@ -681,6 +644,46 @@ async def save_message(
             (conv_id,),
         )
         await db.commit()
+    finally:
+        await db.close()
+
+
+async def save_messages_batch(conv_id: str, rows: list[tuple]) -> None:
+    """单连接批量写入多条会话消息并刷新会话时间（一次事务）。
+
+    rows 元素: (role, content, agent_name, agent_emoji, metadata)，保持列表顺序写入。
+    替代会话落盘时“每条消息各开一个连接”的 N+1 模式。
+    """
+    if not rows:
+        return
+    db = await get_db()
+    try:
+        await db.executemany(
+            "INSERT INTO conversation_messages (conversation_id, role, agent_name, agent_emoji, content, metadata) VALUES (?, ?, ?, ?, ?, ?)",
+            [
+                (conv_id, role, content, agent_name, agent_emoji, metadata)
+                for (role, content, agent_name, agent_emoji, metadata) in rows
+            ],
+        )
+        await db.execute(
+            "UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (conv_id,),
+        )
+        await db.commit()
+    finally:
+        await db.close()
+
+
+async def conversation_message_count(conv_id: str) -> int:
+    """轻量判断会话是否已有消息（替代全量拉取后 len()）。"""
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT COUNT(*) AS n FROM conversation_messages WHERE conversation_id = ?",
+            (conv_id,),
+        )
+        row = await cursor.fetchone()
+        return int(row["n"]) if row else 0
     finally:
         await db.close()
 
@@ -1125,16 +1128,16 @@ async def get_metrics_summary() -> dict:
             "total_failed": total_failed,
             "total_tokens": total_tokens,
             "by_agent": by_agent,
-            "latency_percentiles": await _compute_latency_percentiles(),
-            "by_intent": await _compute_intent_breakdown(),
+            # 复用同一连接，避免聚合函数各自再 open/close 连接
+            "latency_percentiles": await _compute_latency_percentiles(db),
+            "by_intent": await _compute_intent_breakdown(db),
         }
     finally:
         await db.close()
 
 
-async def _compute_latency_percentiles() -> dict:
+async def _compute_latency_percentiles(db) -> dict:
     """计算 Agent 执行耗时的 p50 / p95 / 最大耗时（L5 可观测性增强）。"""
-    db = await get_db()
     try:
         cursor = await db.execute(
             "SELECT duration_ms FROM agent_traces WHERE duration_ms > 0 ORDER BY duration_ms"
@@ -1151,13 +1154,12 @@ async def _compute_latency_percentiles() -> dict:
             "max_ms": vals[-1],
             "samples": n,
         }
-    finally:
-        await db.close()
+    except Exception:
+        return {"p50_ms": 0, "p95_ms": 0, "max_ms": 0, "samples": 0}
 
 
-async def _compute_intent_breakdown() -> dict:
+async def _compute_intent_breakdown(db) -> dict:
     """按意图维度统计成功率与调用次数（L5：识别哪类意图最易失败）。"""
-    db = await get_db()
     try:
         cursor = await db.execute(
             """SELECT intent, status, COUNT(*) as cnt
@@ -1175,8 +1177,8 @@ async def _compute_intent_breakdown() -> dict:
                 round(entry["ok"] / entry["total"], 4) if entry["total"] else 0
             )
         return by_intent
-    finally:
-        await db.close()
+    except Exception:
+        return {}
 
 
 async def record_eval_result(

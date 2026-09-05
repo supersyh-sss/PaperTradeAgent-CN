@@ -245,47 +245,52 @@ async def chat(req: ChatRequest, user_id: str = Depends(get_current_user)):
     await db.create_conversation(conversation_id, user_id)
 
     # 2. 检查是否为全新会话（无历史消息），是则用首条用户消息更新标题
-    existing_msgs = await db.get_conversation_messages(conversation_id)
-    if not existing_msgs:
+    # 轻量判空（避免全量拉取消息后仅用 len()）
+    if await db.conversation_message_count(conversation_id) == 0:
         title = req.message[:20]
         await db.update_conversation_title(conversation_id, title)
 
-    # 3. 保存用户消息
-    await db.save_message(conversation_id, "user", req.message)
-
-    # 4. 保存 agent_logs（各 Agent 的思考过程）
+    rows: list[tuple] = [("user", req.message, None, None, None)]
+    # 保存 agent_logs（各 Agent 的思考过程）
     for log in result.get("agent_logs", []):
-        await db.save_message(
-            conversation_id,
-            "agent_log",
-            log.get("content", ""),
-            agent_name=log.get("agent", ""),
-            agent_emoji=log.get("emoji", ""),
-            metadata=json_mod.dumps(log.get("metadata", {})),
+        rows.append(
+            (
+                "agent_log",
+                log.get("content", ""),
+                log.get("agent", ""),
+                log.get("emoji", ""),
+                json_mod.dumps(log.get("metadata", {})),
+            )
         )
         for fu in log.get("followups", []):
-            await db.save_message(
-                conversation_id,
-                "agent_log",
-                fu,
-                agent_name=log.get("agent", ""),
-                agent_emoji=log.get("emoji", ""),
-                metadata=json_mod.dumps({"is_followup": True}),
+            rows.append(
+                (
+                    "agent_log",
+                    fu,
+                    log.get("agent", ""),
+                    log.get("emoji", ""),
+                    json_mod.dumps({"is_followup": True}),
+                )
             )
 
-    # 5. 保存 assistant 最终回复
-    await db.save_message(
-        conversation_id,
-        "assistant",
-        result.get("final_response", ""),
-        metadata=json_mod.dumps(
-            {
-                "intent": result.get("intent", "chat"),
-                "active_symbol": result.get("active_symbol"),
-                "needs_report": result.get("needs_report", False),
-            }
-        ),
+    # 保存 assistant 最终回复
+    rows.append(
+        (
+            "assistant",
+            result.get("final_response", ""),
+            None,
+            None,
+            json_mod.dumps(
+                {
+                    "intent": result.get("intent", "chat"),
+                    "active_symbol": result.get("active_symbol"),
+                    "needs_report": result.get("needs_report", False),
+                }
+            ),
+        )
     )
+    # 单连接批量落盘，替代逐条开连接
+    await db.save_messages_batch(conversation_id, rows)
 
     # 返回结构化结果
     return {
@@ -567,25 +572,41 @@ async def chat_stream(req: ChatRequest, user_id: str = Depends(get_current_user)
                 _sym = pure_code(tp.get("symbol", ""))
                 _name = (tp.get("name") or "").strip()
                 _side = (tp.get("side") or "").upper()
-                _qty = tp.get("suggested_quantity") or tp.get("quantity") or 100
-                _price = tp.get("suggested_price") or tp.get("current_price")
-                _result = await create_trade(
-                    user_id=user_id,
-                    symbol=_sym,
-                    name=_name,
-                    side=_side,
-                    quantity=int(_qty),
-                    price=float(_price) if _price else None,
-                    order_type="LIMIT",
+                _qty = (
+                    tp.get("suggested_quantity")
+                    if tp.get("suggested_quantity") is not None
+                    else (tp.get("quantity") if tp.get("quantity") is not None else 100)
                 )
-                final_state["order_result"] = _result
-                _suffix = (
-                    "订单已提交，等待撮合成交"
-                    if _result.get("is_trading_time")
-                    else "已提交挂单，下一交易日撮合"
-                )
-                response_text = f"{_result['message']}。{_suffix}"
-                final_state["_direct_executed"] = True
+                if not _qty or _qty <= 0:
+                    # 执行员已判定无法交易（无资金/无持仓等）：不下单，直接给原因
+                    final_state["_direct_executed"] = True
+                    _block_reason = "当前无法交易"
+                    for _w in tp.get("warnings", []):
+                        if _w.get("level") == "HIGH":
+                            _block_reason = _w.get("message", _block_reason)
+                            break
+                    response_text = (
+                        f"无法直接下单：{_block_reason}。如需其他操作请告诉我。"
+                    )
+                else:
+                    _price = tp.get("suggested_price") or tp.get("current_price")
+                    _result = await create_trade(
+                        user_id=user_id,
+                        symbol=_sym,
+                        name=_name,
+                        side=_side,
+                        quantity=int(_qty),
+                        price=float(_price) if _price else None,
+                        order_type="LIMIT",
+                    )
+                    final_state["order_result"] = _result
+                    _suffix = (
+                        "订单已提交，等待撮合成交"
+                        if _result.get("is_trading_time")
+                        else "已提交挂单，下一交易日撮合"
+                    )
+                    response_text = f"{_result['message']}。{_suffix}"
+                    final_state["_direct_executed"] = True
             except HTTPException as _he:
                 logger.warning("直接执行交易失败: %s", _he.detail)
                 final_state["_direct_executed"] = True
@@ -609,13 +630,20 @@ async def chat_stream(req: ChatRequest, user_id: str = Depends(get_current_user)
         pending_action = final_state.get("pending_action")
         is_trading = final_state.get("is_trading_time", False)
         action_required = None
-        if trade_plan and not final_state.get("_direct_executed"):
+        # 执行员判定为 0（无资金/无持仓等无法交易）时不展示确认卡片，避免 0 股被误当 100 股
+        _plan_qty = trade_plan.get("quantity") if trade_plan else None
+        if (
+            trade_plan
+            and _plan_qty is not None
+            and _plan_qty > 0
+            and not final_state.get("_direct_executed")
+        ):
             suggested_price = trade_plan.get("suggested_price") or trade_plan.get(
                 "current_price", 0
             )
-            suggested_qty = trade_plan.get("suggested_quantity") or trade_plan.get(
-                "quantity", 100
-            )
+            suggested_qty = trade_plan.get("suggested_quantity")
+            if suggested_qty is None:
+                suggested_qty = trade_plan.get("quantity")
             prev_close = trade_plan.get("prev_close", suggested_price)
             smart_pricing = trade_plan.get("smart_pricing", {})
 
@@ -696,10 +724,11 @@ async def _save_conversation(
     """Persist conversation to DB (async background task)"""
     try:
         await db.create_conversation(conv_id, user_id)
-        existing = await db.get_conversation_messages(conv_id)
-        if not existing:
+        # 轻量判空（避免全量拉取消息后仅用 len()）
+        if await db.conversation_message_count(conv_id) == 0:
             await db.update_conversation_title(conv_id, message[:20])
-        await db.save_message(conv_id, "user", message)
+
+        rows: list[tuple] = [("user", message, None, None, None)]
         for log_item in final_state.get("agent_logs", []):
             # Skip chief_strategist — not shown to user, don't persist
             if log_item.get("agent") == "chief_strategist":
@@ -708,51 +737,60 @@ async def _save_conversation(
                 # Multi-message agent chat: save each message separately
                 chat_msgs = log_item.get("chat_messages", [])
                 for ci, chat_msg in enumerate(chat_msgs):
-                    await db.save_message(
-                        conv_id,
-                        "agent_log",
-                        chat_msg.get("content", ""),
-                        agent_name=log_item.get("agent", ""),
-                        agent_emoji=log_item.get("emoji", ""),
-                        metadata=json_mod.dumps(
-                            {
-                                "is_followup": chat_msg.get("is_followup", False),
-                                "index": ci,
-                            }
-                        ),
+                    rows.append(
+                        (
+                            "agent_log",
+                            chat_msg.get("content", ""),
+                            log_item.get("agent", ""),
+                            log_item.get("emoji", ""),
+                            json_mod.dumps(
+                                {
+                                    "is_followup": chat_msg.get("is_followup", False),
+                                    "index": ci,
+                                }
+                            ),
+                        )
                     )
             else:
-                await db.save_message(
-                    conv_id,
-                    "agent_log",
-                    log_item.get("content", ""),
-                    agent_name=log_item.get("agent", ""),
-                    agent_emoji=log_item.get("emoji", ""),
+                rows.append(
+                    (
+                        "agent_log",
+                        log_item.get("content", ""),
+                        log_item.get("agent", ""),
+                        log_item.get("emoji", ""),
+                        None,
+                    )
                 )
                 for fu in log_item.get("followups", []):
-                    await db.save_message(
-                        conv_id,
-                        "agent_log",
-                        fu,
-                        agent_name=log_item.get("agent", ""),
-                        agent_emoji=log_item.get("emoji", ""),
-                        metadata=json_mod.dumps({"is_followup": True}),
+                    rows.append(
+                        (
+                            "agent_log",
+                            fu,
+                            log_item.get("agent", ""),
+                            log_item.get("emoji", ""),
+                            json_mod.dumps({"is_followup": True}),
+                        )
                     )
         # Skip assistant message for direct_agent — agent already spoke via agent_log
         if final_state.get("intent") != "direct_agent":
-            await db.save_message(
-                conv_id,
-                "assistant",
-                final_state.get("final_response", ""),
-                metadata=json_mod.dumps(
-                    {
-                        "intent": final_state.get("intent"),
-                        "active_symbol": final_state.get("active_symbol"),
-                        "needs_report": final_state.get("needs_report", False),
-                        "plan": final_state.get("plan"),
-                    }
-                ),
+            rows.append(
+                (
+                    "assistant",
+                    final_state.get("final_response", ""),
+                    None,
+                    None,
+                    json_mod.dumps(
+                        {
+                            "intent": final_state.get("intent"),
+                            "active_symbol": final_state.get("active_symbol"),
+                            "needs_report": final_state.get("needs_report", False),
+                            "plan": final_state.get("plan"),
+                        }
+                    ),
+                )
             )
+        # 单连接批量落盘：一次会话 8~12 次开连接 -> 1 次
+        await db.save_messages_batch(conv_id, rows)
     except Exception:
         logger.warning("流式会话保存失败", exc_info=True)
 

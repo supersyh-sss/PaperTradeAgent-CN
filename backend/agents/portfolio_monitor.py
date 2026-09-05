@@ -26,8 +26,10 @@ async def portfolio_monitor_node(state: AgentState) -> AgentState:
 
     if not positions:
         account = await db.get_account(user_id)
-        balance = float(account["balance"]) if account else 0
-        total_assets = float(account["total_assets"]) if account else balance
+        balance = float(account.get("balance", 0) or 0) if account else 0
+        total_assets = (
+            float(account.get("total_assets", 0) or 0) if account else balance
+        )
         summary = {
             "balance": round(balance, 2),
             "total_market_value": 0,
@@ -60,6 +62,7 @@ async def portfolio_monitor_node(state: AgentState) -> AgentState:
     total_market_value = 0.0
     total_cost = 0.0
 
+    price_updates = []
     for pos in positions:
         symbol = pos["symbol"]
         stock_info = None
@@ -84,8 +87,16 @@ async def portfolio_monitor_node(state: AgentState) -> AgentState:
         t1_qty, _sellable_qty = compute_sellable(pos)
         t1_restricted = t1_qty > 0
 
-        # 更新价格
-        await db.update_position_prices(user_id, symbol, current_price)
+        # 收集价格刷新项，循环外单连接批量落库
+        price_updates.append(
+            {
+                "symbol": symbol,
+                "latest_price": current_price,
+                "market_value": market_value,
+                "unrealized_pnl": pnl,
+                "unrealized_pnl_pct": pnl_pct,
+            }
+        )
 
         portfolio_data.append(
             {
@@ -104,12 +115,15 @@ async def portfolio_monitor_node(state: AgentState) -> AgentState:
         total_market_value += market_value
         total_cost += pos_total_cost
 
+    if price_updates:
+        await db.batch_update_position_prices(user_id, price_updates)
+
     total_pnl = round(total_market_value - total_cost, 2)
     total_pnl_pct = round(total_pnl / total_cost * 100, 2) if total_cost > 0 else 0
 
     # 获取账户信息
     account = await db.get_account(user_id)
-    balance = float(account["balance"]) if account else 0
+    balance = float(account.get("balance", 0) or 0) if account else 0
 
     # 检查是否需要策略建议
     advice = []
@@ -160,10 +174,10 @@ async def portfolio_monitor_node(state: AgentState) -> AgentState:
         len(portfolio_data),
     )
 
-    # 更新账户总资产
+    # 更新账户总资产（乐观锁：余额被并发结算改动时跳过，避免用陈旧快照回写账目）
     if account:
         new_total = round(balance + total_market_value, 2)
-        await db.update_account_balance(user_id, balance, new_total)
+        await db.update_total_assets(user_id, new_total, expect_balance=balance)
 
     # LLM 持仓健康度评估
     try:
@@ -294,7 +308,7 @@ async def portfolio_monitor_node(state: AgentState) -> AgentState:
         "name_cn": AGENT_PROFILES["portfolio_monitor"]["name_cn"],
         "color": AGENT_PROFILES["portfolio_monitor"]["color"],
         "content": agent_log_content,
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": datetime.now().astimezone().isoformat(),
     }
     agent_log = maybe_attach_followup(agent_log, "portfolio_monitor")
     state.setdefault("agent_logs", []).append(agent_log)
