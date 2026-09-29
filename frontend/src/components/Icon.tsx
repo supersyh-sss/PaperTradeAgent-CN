@@ -400,6 +400,16 @@ export const ActivityIcon = makeIcon("Activity", () => (
   </>
 ));
 
+export const TrophyIcon = makeIcon("Trophy", () => (
+  <>
+    <path d="M8 21h8" />
+    <path d="M12 17v4" />
+    <path d="M7 4h10v6a5 5 0 01-10 0V4z" />
+    <path d="M7 6H4a1 1 0 00-1 1c0 2.2 1.8 4 4 4" />
+    <path d="M17 6h3a1 1 0 011 1c0 2.2-1.8 4-4 4" />
+  </>
+));
+
 export const SlidersIcon = makeIcon("Sliders", () => (
   <>
     <path d="M4 21v-7" />

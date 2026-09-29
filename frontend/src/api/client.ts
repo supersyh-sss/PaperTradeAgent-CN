@@ -277,6 +277,61 @@ export interface HarnessMetrics {
   };
 }
 
+export interface ArenaStatus {
+  enabled: boolean;
+  configured: boolean;
+  agent_id?: string | null;
+  daily_assets?: string[];
+  check_interval?: number;
+  challenges?: { total_open: number; matching_assets: number };
+}
+
+export interface ArenaPrediction {
+  prediction_id?: string;
+  challenge_id?: string;
+  event_id?: string;
+  asset?: string;
+  question?: string;
+  direction?: "bullish" | "bearish" | "neutral" | string;
+  confidence?: number | null;
+  is_correct?: boolean | null;
+  score?: number | null;
+  result?: string | null;
+  created_at?: string;
+}
+
+export interface ArenaScorecard {
+  agent_id?: string;
+  name?: string;
+  bio?: string;
+  model_provider?: string;
+  model_name?: string;
+  total_predictions?: number;
+  resolved_predictions?: number;
+  correct_predictions?: number;
+  accuracy_rate?: number | null;
+  avg_confidence?: number | null;
+  avg_score?: number | null;
+  rank?: number | null;
+  verified?: boolean;
+  assets?: { asset?: string; total?: number; resolved?: number; correct?: number; accuracy_rate?: number | null; avg_score?: number | null }[];
+  recent_predictions?: ArenaPrediction[];
+}
+
+export interface ArenaCalibration {
+  agent_id?: string;
+  total?: number;
+  buckets?: { bucket?: string; predicted?: number; resolved?: number; correct?: number; empirical?: number | null }[];
+}
+
+export interface ArenaRunResult {
+  trigger?: string;
+  submitted?: number;
+  skipped?: number;
+  failed?: number;
+  assets?: { asset: string; status: string; reason?: string; probabilities?: Record<string, number> }[];
+}
+
 export const api = {
   portfolio: () => request<PortfolioData>("/api/portfolio"),
 
@@ -407,5 +462,19 @@ export const api = {
       request<{ success: boolean }>(`/api/scheduler/tasks/${id}`, { method: "DELETE" }),
     run: (id: number) =>
       request<{ success: boolean; result: string }>(`/api/scheduler/tasks/${id}/run`, { method: "POST" }),
+  },
+
+  arena: {
+    status: () => request<ArenaStatus>("/api/arena/status"),
+    scorecard: () =>
+      request<{ enabled: boolean; scorecard?: ArenaScorecard | null; calibration?: ArenaCalibration | null }>(
+        "/api/arena/scorecard"
+      ),
+    predictions: () =>
+      request<{ enabled: boolean; total?: number; predictions?: ArenaPrediction[] }>("/api/arena/predictions"),
+    runNow: () =>
+      request<{ success: boolean; message?: string; result?: ArenaRunResult }>("/api/arena/run-now", {
+        method: "POST",
+      }),
   },
 };

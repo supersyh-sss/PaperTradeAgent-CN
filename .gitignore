@@ -28,6 +28,10 @@ backend/cache/*.onnx
 # K线运行时缓存（git rm -r --cached data/kline_cache 后新增文件不再入库）
 data/kline_cache/
 
+# Headline Arena 测试凭据与临时 CLI（含 client_secret，禁止入库）
+data/headlinearena/
+ha_cli/
+
 # 运行时 SQLite 数据库（由 init_db 自动创建，禁止入库）
 backend/database/paper_trade.db
 backend/database/paper_trade.db-shm

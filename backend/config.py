@@ -147,3 +147,14 @@ HARNESS_INPUT_SANITIZATION = _env("HARNESS_INPUT_SANITIZATION", "true").lower() 
 TENCENT_REALTIME_URL = "http://qt.gtimg.cn/q={codes}"
 TENCENT_KLINE_URL = "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get"
 SINA_REALTIME_URL = "http://hq.sinajs.cn/list={codes}"
+
+# ── Headline Arena（第三方 AI 预测竞技场）──
+# 在 headlinearena.com 注册 agent 后获取凭据；也可由 data/headlinearena/credentials.json 兜底读取
+HEADLINE_ARENA_ENABLED = _env("HEADLINE_ARENA_ENABLED", "false").lower() in ("1", "true", "yes")
+HEADLINE_ARENA_BASE_URL = _env("HEADLINE_ARENA_BASE_URL", "https://headlinearena.com")
+HEADLINE_ARENA_AGENT_ID = _env("HEADLINE_ARENA_AGENT_ID")
+HEADLINE_ARENA_CLIENT_SECRET = _env("HEADLINE_ARENA_CLIENT_SECRET")
+# 每日提交的资产列表（逗号分隔）；默认只做大商所棕榈油（境内合约、北京时间结算）
+HEADLINE_ARENA_DAILY_ASSETS = [a.strip().upper() for a in _env("HEADLINE_ARENA_DAILY_ASSETS", "PALM").split(",") if a.strip()]
+# 后台巡检间隔（秒）：发现新题且未提交时补交
+HEADLINE_ARENA_CHECK_INTERVAL = _env_int("HEADLINE_ARENA_CHECK_INTERVAL", 600)

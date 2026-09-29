@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useChatStore } from "../stores/chatStore";
 import { api } from "../api/client";
 import AddWatchlistDialog from "./AddWatchlistDialog";
-import { LayersIcon, PlusIcon, XIcon, CheckIcon, LayoutDashboardIcon, WalletIcon, TrendingUpIcon, ArrowUpIcon, ArrowDownIcon, EyeIcon, EyeOffIcon } from "./Icon";
+import { LayersIcon, PlusIcon, XIcon, CheckIcon, LayoutDashboardIcon, WalletIcon, TrendingUpIcon, TrophyIcon, ArrowUpIcon, ArrowDownIcon, EyeIcon, EyeOffIcon } from "./Icon";
+import ArenaScorecardDialog from "./ArenaScorecardDialog";
 
 const fmt2 = (v: number) => v.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const toBeijing = (s: string) => { try { return new Date(s.includes("T") ? s : s.replace(" ", "T") + "Z").toLocaleDateString("zh-CN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }); } catch { return s; } };
@@ -41,6 +42,7 @@ function ArmDeleteButton({ onConfirm, title = "删除", titleArm = "再次点击
 export default function Sidebar({ className = "" }: { className?: string }) {
   const { watchlist, portfolio, activeSymbol, conversations, conversationId, loadWatchlist, loadPortfolio, loadActiveOrders, loadConversations, sendMessage, loadConversation, newConversation, openStockDetail, removeFromWatchlist } = useChatStore();
   const [addOpen, setAddOpen] = useState(false);
+  const [arenaOpen, setArenaOpen] = useState(false);
   const [maskAssets, setMaskAssets] = useState(false);
   const [now, setNow] = useState(new Date());
   const priceRef = useRef<Record<string, number>>({});
@@ -143,6 +145,9 @@ export default function Sidebar({ className = "" }: { className?: string }) {
           </button>
           <button onClick={() => setAddOpen(true)} className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[12px] text-text-secondary hover:bg-hover hover:text-text-primary transition-colors">
             <TrendingUpIcon size={15} className="text-success/70 flex-shrink-0" />添加自选
+          </button>
+          <button onClick={() => setArenaOpen(true)} className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[12px] text-text-secondary hover:bg-hover hover:text-text-primary transition-colors">
+            <TrophyIcon size={15} className="text-warning/70 flex-shrink-0" />Arena 成绩单
           </button>
         </div>
       </div>
@@ -272,6 +277,7 @@ export default function Sidebar({ className = "" }: { className?: string }) {
           </div>
         )}
       {addOpen && <AddWatchlistDialog onClose={() => setAddOpen(false)} />}
+      {arenaOpen && <ArenaScorecardDialog onClose={() => setArenaOpen(false)} />}
     </aside>
   );
 }

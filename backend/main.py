@@ -14,6 +14,7 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import __version__
+from .api.arena import router as arena_router
 from .api.chat import router as chat_router
 from .api.feedback import router as feedback_router
 from .api.market import router as market_router
@@ -104,6 +105,11 @@ async def lifespan(app: FastAPI):
     start_scheduler()
     logger.info("定时任务调度循环已启动")
 
+    # 启动 Headline Arena 每日预测任务（未启用时自动跳过）
+    from .services.arena_daily import start_arena_daily
+
+    start_arena_daily()
+
     yield
     # 关闭时清理
     await task_manager.shutdown()
@@ -192,6 +198,7 @@ app.include_router(feedback_router)
 app.include_router(observability_router)
 app.include_router(profile_router)
 app.include_router(scheduler_router)
+app.include_router(arena_router)
 
 
 @app.get("/api/health")
