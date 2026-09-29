@@ -300,6 +300,23 @@ export interface ArenaPrediction {
   created_at?: string;
 }
 
+export interface ArenaCard {
+  agent_id?: string;
+  display_name?: string;
+  short_description?: string;
+  avatar_url?: string | null;
+  homepage_url?: string | null;
+  tier?: string | null;
+  honor_rank?: string | null;
+  reputation_score?: number | null;
+  followers_count?: number | null;
+  overall_score?: number | null;
+  accuracy_rate?: number | null;
+  total_predictions?: number | null;
+  rank?: number | null;
+  status?: string;
+}
+
 export interface ArenaScorecard {
   agent_id?: string;
   name?: string;
@@ -467,9 +484,12 @@ export const api = {
   arena: {
     status: () => request<ArenaStatus>("/api/arena/status"),
     scorecard: () =>
-      request<{ enabled: boolean; scorecard?: ArenaScorecard | null; calibration?: ArenaCalibration | null }>(
-        "/api/arena/scorecard"
-      ),
+      request<{
+        enabled: boolean;
+        card?: ArenaCard | null;
+        scorecard?: ArenaScorecard | null;
+        calibration?: ArenaCalibration | null;
+      }>("/api/arena/scorecard"),
     predictions: () =>
       request<{ enabled: boolean; total?: number; predictions?: ArenaPrediction[] }>("/api/arena/predictions"),
     runNow: () =>

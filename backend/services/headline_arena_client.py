@@ -5,9 +5,11 @@
   - 开放题目 / 市场上下文 / 历史预测 / 成绩单 / 校准曲线 的读取
   - 预测提交（probabilities 三键齐全且和为 1，confidence 取 argmax）
 
-注意：Cloudflare 拦截 Python 默认 UA（Error 1010），所有请求必须带自定义 User-Agent。
+注意：统一携带自定义 User-Agent（平台曾对 /api/ 跑 Browser Integrity Check
+拦截 Python 默认 UA，虽已对 API 路径放行，自定义 UA 仍是推荐做法）。
 """
 
+import asyncio
 import json
 import logging
 import time
@@ -23,6 +25,9 @@ _BASE_URL = HEADLINE_ARENA_BASE_URL.rstrip("/")
 _API = f"{_BASE_URL}/api/v1"
 _UA = "PaperTradeAgent/0.1 (+https://github.com/supersyh-sss/PaperTradeAgent-CN)"
 _TIMEOUT = httpx.Timeout(30.0, connect=10.0)
+# 边缘节点偶发 502/网络抖动时的重试间隔（GET 只读，重试安全）
+_RETRY_DELAYS = (1.0, 2.5)
+_RETRY_STATUSES = {502, 503, 504}
 
 # 凭据兜底文件（相对项目根）：data/headlinearena/credentials.json
 _CREDENTIALS_FILE = Path(__file__).resolve().parents[2] / "data" / "headlinearena" / "credentials.json"
@@ -118,10 +123,36 @@ async def _request(method: str, path: str, *, json_body: dict | None = None) -> 
     )
 
 
+async def _get_with_retry(url: str, *, auth: bool = False) -> httpx.Response:
+    """GET 只读请求：对边缘 5xx 与连接抖动做有限重试（共 3 次尝试）。"""
+    attempts = len(_RETRY_DELAYS) + 1
+    for i in range(attempts):
+        headers = {"Authorization": f"Bearer {await get_token()}"} if auth else {}
+        try:
+            resp = await _get_client().get(url, headers=headers)
+        except (httpx.TransportError, httpx.TimeoutException) as e:
+            if i == attempts - 1:
+                raise
+            logger.info("Headline Arena GET 网络异常（%s），%.1fs 后重试", e, _RETRY_DELAYS[i])
+            await asyncio.sleep(_RETRY_DELAYS[i])
+            continue
+        if resp.status_code in _RETRY_STATUSES and i < attempts - 1:
+            logger.info(
+                "Headline Arena GET 返回 %s，%.1fs 后重试（%s）",
+                resp.status_code,
+                _RETRY_DELAYS[i],
+                url,
+            )
+            await asyncio.sleep(_RETRY_DELAYS[i])
+            continue
+        return resp
+    raise RuntimeError("unreachable")
+
+
 async def get_open_challenges() -> list[dict]:
     """开放题目列表（公开端点，带 token 也无妨）。"""
     try:
-        resp = await _get_client().get(f"{_API}/eval/challenges", params={"status": "open"})
+        resp = await _get_with_retry(f"{_API}/eval/challenges?status=open")
         resp.raise_for_status()
         data = resp.json()
         items = data.get("items") if isinstance(data, dict) else data
@@ -134,7 +165,7 @@ async def get_open_challenges() -> list[dict]:
 async def get_market_context(asset: str) -> dict | None:
     """市场上下文（价格/指标/基线分布，公开端点）。"""
     try:
-        resp = await _get_client().get(f"{_API}/eval/context/{asset}")
+        resp = await _get_with_retry(f"{_API}/eval/context/{asset}")
         resp.raise_for_status()
         return resp.json()
     except (httpx.HTTPError, ValueError) as e:
@@ -148,7 +179,7 @@ async def get_my_predictions() -> list[dict]:
     if not agent_id:
         return []
     try:
-        resp = await _request("GET", f"/eval/agents/{agent_id}/predictions")
+        resp = await _get_with_retry(f"{_API}/eval/agents/{agent_id}/predictions", auth=True)
         resp.raise_for_status()
         data = resp.json()
         items = data.get("items") if isinstance(data, dict) else data
@@ -192,15 +223,31 @@ async def submit_prediction(
         raise RuntimeError(f"Headline Arena 提交预测失败: {e} {detail}") from e
 
 
-async def get_scorecard() -> dict | None:
-    """成绩单（公开端点 leaderboard/{agent_id}）；未收录/失败返回 None。"""
+async def get_agent_card() -> dict | None:
+    """Agent 公开名片（/agent/{id}/card）：active 即返回，含名称、段位、声誉等。"""
     agent_id, _ = _credentials()
     if not agent_id:
         return None
     try:
-        resp = await _get_client().get(f"{_API}/eval/leaderboard/{agent_id}")
+        resp = await _get_with_retry(f"{_API}/agent/{agent_id}/card")
         if resp.status_code == 404:
-            logger.info("Headline Arena 暂无该 agent 的成绩单（%s）", agent_id)
+            return None
+        resp.raise_for_status()
+        return resp.json()
+    except (httpx.HTTPError, ValueError) as e:
+        logger.warning("Headline Arena 获取 agent card 失败: %s", e)
+        return None
+
+
+async def get_scorecard() -> dict | None:
+    """成绩单（/eval/agents/{id}/scorecard）；首条预测结算前返回 404，归一为空态。"""
+    agent_id, _ = _credentials()
+    if not agent_id:
+        return None
+    try:
+        resp = await _get_with_retry(f"{_API}/eval/agents/{agent_id}/scorecard")
+        if resp.status_code == 404:
+            logger.info("Headline Arena 暂无已结算成绩（%s）", agent_id)
             return None
         resp.raise_for_status()
         return resp.json()
@@ -215,7 +262,7 @@ async def get_calibration() -> dict | None:
     if not agent_id:
         return None
     try:
-        resp = await _get_client().get(f"{_API}/eval/agents/{agent_id}/calibration")
+        resp = await _get_with_retry(f"{_API}/eval/agents/{agent_id}/calibration")
         if resp.status_code == 404:
             return None
         resp.raise_for_status()

@@ -43,12 +43,18 @@ async def arena_status(_: str = Depends(get_current_user)):
 
 @router.get("/scorecard")
 async def arena_scorecard(_: str = Depends(get_current_user)):
-    """成绩单 + 校准数据聚合（未启用/未配置时返回 enabled=False）。"""
+    """名片 + 成绩单 + 校准数据聚合（未启用/未配置时返回 enabled=False）。"""
     if not config.HEADLINE_ARENA_ENABLED:
         return {"enabled": False}
+    card = await hac.get_agent_card()
     scorecard = await hac.get_scorecard()
     calibration = await hac.get_calibration()
-    return {"enabled": True, "scorecard": scorecard, "calibration": calibration}
+    return {
+        "enabled": True,
+        "card": card,
+        "scorecard": scorecard,
+        "calibration": calibration,
+    }
 
 
 @router.get("/predictions")
