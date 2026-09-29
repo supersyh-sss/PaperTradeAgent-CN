@@ -34,6 +34,25 @@ function formatTime(iso?: string) {
   return d.toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
+function formatClockShort(iso?: string | null) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
+function formatCountdown(targetIso?: string | null, now: number = Date.now()) {
+  if (!targetIso) return "";
+  const t = new Date(targetIso).getTime();
+  if (Number.isNaN(t)) return "";
+  const diffMin = Math.round((t - now) / 60000);
+  if (diffMin <= 0) return "已到结算时间，等待平台出结果（约每 15 分钟一轮）";
+  if (diffMin < 60) return `${diffMin} 分钟后结算`;
+  const h = Math.floor(diffMin / 60);
+  const m = diffMin % 60;
+  return m > 0 ? `${h} 小时 ${m} 分后结算` : `${h} 小时后结算`;
+}
+
 function DirectionTag({ dir }: { dir?: string }) {
   const meta = DIR_META[dir || ""] || { label: dir || "—", text: "text-text-muted", bar: "" };
   return <span className={`text-[12px] font-bold ${meta.text}`}>{meta.label}</span>;
@@ -101,6 +120,13 @@ export default function ArenaScorecardDialog({ onClose }: ArenaScorecardDialogPr
     load();
   }, [load]);
 
+  // 结算倒计时每 30 秒刷新
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNowTick(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+
   const handleRunNow = async () => {
     setRunning(true);
     setRunMsg("");
@@ -131,6 +157,10 @@ export default function ArenaScorecardDialog({ onClose }: ArenaScorecardDialogPr
   const rankLabel = scorecard?.rank != null ? `#${scorecard.rank}` : card?.rank != null ? `#${card.rank}` : null;
   const honorLabel = card?.honor_rank ? HONOR_RANK_LABEL[card.honor_rank] || card.honor_rank : null;
   const pendingCount = predictions.filter((p) => p.is_correct == null).length;
+  const pendingWithEta = predictions
+    .filter((p) => p.is_correct == null && p.resolve_at)
+    .sort((a, b) => new Date(a.resolve_at!).getTime() - new Date(b.resolve_at!).getTime());
+  const nextSettlement = pendingWithEta[0]?.resolve_at || null;
 
   return (
     <div
@@ -215,17 +245,35 @@ export default function ArenaScorecardDialog({ onClose }: ArenaScorecardDialogPr
                   className="rounded-xl border border-accent/25 px-4 py-4"
                   style={{ background: "linear-gradient(160deg, rgba(96,165,250,0.14) 0%, rgba(96,165,250,0.03) 100%)" }}
                 >
-                  <div className="text-[11px] text-text-secondary">准确率（已结算 {resolved} 题）</div>
-                  <div className="font-data text-[40px] font-bold leading-none mt-2 text-text-primary">
-                    {accuracy != null ? `${(accuracy * 100).toFixed(1)}%` : "—"}
+                  <div className="text-[11px] text-text-secondary">
+                    {resolved > 0 ? `准确率（已结算 ${resolved} 题）` : `等待首题结算（已提交 ${pendingCount} 题）`}
                   </div>
-                  <div className="text-[11px] text-text-muted mt-2">
-                    {resolved > 0 ? `答对 ${correct} 题，共 ${resolved} 题已结算` : "首题结算后这里会显示准确率"}
-                  </div>
+                  {resolved > 0 ? (
+                    <>
+                      <div className="font-data text-[40px] font-bold leading-none mt-2 text-text-primary">
+                        {accuracy != null ? `${(accuracy * 100).toFixed(1)}%` : "—"}
+                      </div>
+                      <div className="text-[11px] text-text-muted mt-2">答对 {correct} 题，共 {resolved} 题已结算</div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2 mt-3">
+                        <span className="w-2 h-2 rounded-full bg-warning animate-pulse flex-shrink-0" />
+                        <div className="font-data text-[22px] font-bold leading-none text-text-primary">
+                          {formatCountdown(nextSettlement, nowTick)}
+                        </div>
+                      </div>
+                      <div className="text-[11px] text-text-muted mt-2.5 leading-relaxed">
+                        {nextSettlement
+                          ? `预计 ${formatClockShort(nextSettlement)} 出首个结果，结算后准确率自动更新`
+                          : "日度题在标的当日收盘后由平台机械结算"}
+                      </div>
+                    </>
+                  )}
                 </div>
                 <div className="grid grid-cols-2 gap-2.5">
                   <MiniStat label="累计预测" value={String(total ?? "—")} sub={pendingCount > 0 ? `${pendingCount} 题待结算` : undefined} />
-                  <MiniStat label="正确数" value={String(correct ?? "—")} />
+                  <MiniStat label="正确数" value={resolved > 0 ? String(correct) : "—"} sub={resolved === 0 ? "尚无已结算题" : undefined} />
                   <MiniStat label="平均分" value={avgScore ?? "—"} />
                   <MiniStat label="平均置信度" value={avgConf != null ? `${(avgConf * 100).toFixed(0)}%` : "—"} />
                 </div>
@@ -279,6 +327,12 @@ export default function ArenaScorecardDialog({ onClose }: ArenaScorecardDialogPr
                           {p.question && (
                             <div className="text-[11.5px] text-text-muted truncate mt-1.5" title={p.question}>
                               {p.question}
+                            </div>
+                          )}
+                          {p.is_correct == null && p.resolve_at && (
+                            <div className="flex items-center gap-1.5 mt-1.5 text-[10.5px] text-warning/90">
+                              <span className="w-1.5 h-1.5 rounded-full bg-warning/80 animate-pulse flex-shrink-0" />
+                              预计 {formatClockShort(p.resolve_at)} 结算 · {formatCountdown(p.resolve_at, nowTick)}
                             </div>
                           )}
                           <div className="flex items-center gap-2.5 mt-2">

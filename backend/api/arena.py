@@ -1,5 +1,6 @@
 """Headline Arena API — 第三方预测竞技场的状态、成绩单与手动触发"""
 
+import asyncio
 import logging
 
 from fastapi import APIRouter, Depends
@@ -59,10 +60,20 @@ async def arena_scorecard(_: str = Depends(get_current_user)):
 
 @router.get("/predictions")
 async def arena_predictions(_: str = Depends(get_current_user)):
-    """本 agent 的预测历史（未启用时返回空列表）。"""
+    """本 agent 的预测历史，关联题目的结算时间/状态（未启用时返回空列表）。"""
     if not config.HEADLINE_ARENA_ENABLED:
         return {"enabled": False, "predictions": []}
-    predictions = await hac.get_my_predictions()
+    predictions, challenges = await asyncio.gather(
+        hac.get_my_predictions(),
+        hac.get_recent_challenges(),
+    )
+    challenge_map = {c.get("id"): c for c in challenges if isinstance(c, dict)}
+    for p in predictions:
+        ch = challenge_map.get(p.get("challenge_id"))
+        if ch:
+            p["resolve_at"] = ch.get("resolve_at")
+            p["challenge_status"] = ch.get("status")
+            p["deadline"] = ch.get("deadline")
     return {"enabled": True, "total": len(predictions), "predictions": predictions}
 
 

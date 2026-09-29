@@ -298,6 +298,9 @@ export interface ArenaPrediction {
   score?: number | null;
   result?: string | null;
   created_at?: string;
+  resolve_at?: string | null;
+  deadline?: string | null;
+  challenge_status?: string | null;
 }
 
 export interface ArenaCard {

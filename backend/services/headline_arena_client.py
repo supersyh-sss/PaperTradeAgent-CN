@@ -162,6 +162,19 @@ async def get_open_challenges() -> list[dict]:
         return []
 
 
+async def get_recent_challenges(limit: int = 100) -> list[dict]:
+    """近期题目（含 open/closed/resolved），用于给预测历史关联结算时间。"""
+    try:
+        resp = await _get_with_retry(f"{_API}/eval/challenges?limit={limit}")
+        resp.raise_for_status()
+        data = resp.json()
+        items = data.get("items") if isinstance(data, dict) else data
+        return items if isinstance(items, list) else []
+    except (httpx.HTTPError, ValueError) as e:
+        logger.warning("Headline Arena 获取近期题目失败: %s", e)
+        return []
+
+
 async def get_market_context(asset: str) -> dict | None:
     """市场上下文（价格/指标/基线分布，公开端点）。
 
