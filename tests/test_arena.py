@@ -7,6 +7,7 @@ from backend.services.arena_daily import (
     _parse_llm_json,
     build_prediction_messages,
     normalize_probabilities,
+    sanitize_context,
 )
 
 FAKE_CONTEXT = {
@@ -128,3 +129,39 @@ def test_parse_llm_json_with_noise():
     data = _parse_llm_json(raw)
     assert isinstance(data, dict)
     assert data["bearish"] == 0.2
+
+
+# ── sanitize_context（实测平台 recent_events 混入远期日历事件） ─────────
+
+
+def test_sanitize_context_drops_far_future_events():
+    ctx = {
+        "as_of": "2026-09-29T16:00:00Z",
+        "recent_events": [
+            {"title": "今日美盘库存", "timestamp": "2026-09-30T14:30:00"},
+            {"title": "一个月后的 ECB", "timestamp": "2026-10-29T13:45:00"},
+        ],
+    }
+    out = sanitize_context(ctx)
+    titles = [e["title"] for e in out["recent_events"]]
+    assert "今日美盘库存" in titles
+    assert "一个月后的 ECB" not in titles
+    # 不修改原对象
+    assert len(ctx["recent_events"]) == 2
+
+
+def test_sanitize_context_keeps_unparseable_and_no_events():
+    ctx = {"as_of": "2026-09-29T16:00:00Z", "recent_events": [{"title": "无时间戳"}]}
+    assert sanitize_context(ctx)["recent_events"] == [{"title": "无时间戳"}]
+    assert sanitize_context({"price": 1}) == {"price": 1}
+    assert sanitize_context("not dict") == {}
+
+
+def test_build_prediction_messages_filters_noise_events():
+    ctx = {
+        **FAKE_CONTEXT,
+        "as_of": "2026-09-29T16:00:00Z",
+        "recent_events": [{"title": "远期噪声事件 XYZ", "timestamp": "2026-12-01T00:00:00"}],
+    }
+    user_msg = build_prediction_messages("Q", "R", ctx)[1]["content"]
+    assert "远期噪声事件 XYZ" not in user_msg

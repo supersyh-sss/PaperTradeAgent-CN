@@ -163,11 +163,19 @@ async def get_open_challenges() -> list[dict]:
 
 
 async def get_market_context(asset: str) -> dict | None:
-    """市场上下文（价格/指标/基线分布，公开端点）。"""
+    """市场上下文（价格/指标/基线分布，公开端点）。
+
+    注意：该端点对不支持的资产返回 200 + {"error": "context_unavailable"}，
+    需显式归一为 None，不能靠真值判断。
+    """
     try:
         resp = await _get_with_retry(f"{_API}/eval/context/{asset}")
         resp.raise_for_status()
-        return resp.json()
+        data = resp.json()
+        if isinstance(data, dict) and data.get("error"):
+            logger.info("Headline Arena %s 上下文不可用: %s", asset, data.get("error"))
+            return None
+        return data
     except (httpx.HTTPError, ValueError) as e:
         logger.warning("Headline Arena 获取 %s 市场上下文失败: %s", asset, e)
         return None

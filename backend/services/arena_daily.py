@@ -9,6 +9,7 @@
 import asyncio
 import json
 import logging
+from datetime import datetime, timedelta, timezone
 
 from .. import config
 from .headline_arena_client import (
@@ -26,6 +27,41 @@ logger = logging.getLogger(__name__)
 # 与 Arena 结算规则一致：涨跌幅落在 ±0.3% 死区内判 neutral
 DEAD_ZONE_PCT = 0.3
 
+# recent_events 实际是宏观日历（实测混入一个月后的事件），日度预测只保留近窗事件
+EVENT_LOOKBACK_DAYS = 2
+EVENT_LOOKAHEAD_DAYS = 3
+
+
+def _parse_ts(value) -> datetime | None:
+    if not value or not isinstance(value, str):
+        return None
+    try:
+        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
+def sanitize_context(context: dict) -> dict:
+    """过滤上下文中与日度方向无关的噪声（实测 recent_events 含远期日历事件）。"""
+    if not isinstance(context, dict):
+        return {}
+    result = dict(context)
+    events = context.get("recent_events")
+    if isinstance(events, list):
+        now = _parse_ts(context.get("as_of")) or datetime.now(timezone.utc)
+        lo, hi = now - timedelta(days=EVENT_LOOKBACK_DAYS), now + timedelta(days=EVENT_LOOKAHEAD_DAYS)
+        kept = []
+        for e in events:
+            if not isinstance(e, dict):
+                continue
+            ts = _parse_ts(e.get("timestamp"))
+            if ts is None or lo <= ts <= hi:
+                kept.append(e)
+        result["recent_events"] = kept
+    return result
+
+
 _SYSTEM_PROMPT = (
     "你是一名严谨的期货市场方向预测员，负责对大宗商品/金融期货的日内涨跌方向给出概率分布判断。"
     "你必须输出严格的 JSON 对象（不要任何多余文本或 Markdown 围栏），格式为：\n"
@@ -41,8 +77,8 @@ _SYSTEM_PROMPT = (
 def build_prediction_messages(
     question: str, criteria_zh: str, context: dict
 ) -> list[dict]:
-    """组装预测用的 LLM 消息（纯函数，便于单测）。"""
-    ctx_json = json.dumps(context, ensure_ascii=False, indent=2)
+    """组装预测用 LLM 消息（纯函数，便于单测）。"""
+    ctx_json = json.dumps(sanitize_context(context), ensure_ascii=False, indent=2)
     user = (
         f"# 题目\n{question}\n\n"
         f"# 结算规则\n{criteria_zh or '（官方未提供细则，按通用规则：结算价相对开盘价判断方向）'}\n\n"
